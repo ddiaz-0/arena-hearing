@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import math
-import time
 import uuid
 
 import numpy as np
 import pytest
+
+_spin_until = pytest.importorskip("arena_rclpy_mixins.testing").spin_until
 
 
 @pytest.fixture(autouse=True)
@@ -18,15 +18,6 @@ def _ros_gate():
     pytest.importorskip("arena_robots_msgs.msg")
     pytest.importorskip("task_generator_msgs.msg")
     pytest.importorskip("visualization_msgs.msg")
-
-
-@pytest.fixture
-def loop():
-    event_loop = asyncio.new_event_loop()
-    try:
-        yield event_loop
-    finally:
-        event_loop.close()
 
 
 @pytest.fixture
@@ -447,16 +438,6 @@ def test_wedge_markers_delete_retired_ids_and_draw_live_wedges_faded_by_age(beli
     last = old.points[-1]
     assert (last.x, last.y) == pytest.approx((1.0 + 4.0 * math.cos(0.3 + half), 2.0 + 4.0 * math.sin(0.3 + half)))
     assert math.hypot(new.points[1].x, new.points[1].y) == pytest.approx(1.5)
-
-
-def _spin_until(rclpy, nodes, predicate, timeout_sec: float = 10.0) -> None:
-    deadline = time.monotonic() + timeout_sec
-    while time.monotonic() < deadline:
-        for node in nodes:
-            rclpy.spin_once(node, timeout_sec=0.02)
-        if predicate():
-            return
-    raise AssertionError("timed out waiting for ROS round-trip")
 
 
 def test_timer_publishes_wedges_only_while_someone_listens(belief) -> None:
