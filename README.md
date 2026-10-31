@@ -229,5 +229,5 @@ tests call the hearing tools against the same subprocesses.
 | `config/weights.yaml` | SELDnet weights and pins |
 | `config/nav2_overlay.yaml` | Nav2 SpeedFilter overlay |
 | `arena_hearing/params.py` | every hearing node parameter and default |
-| `task_generator/launch/hearing/` (Arena) | hearing axis dispatch and the include of `launch/hearing.launch.py` |
-| `task_generator/task_generator/simulators/hearing/` (Arena) | node-side hearing axis, the single gateway into this package |
+| `arena_runtime/arena_runtime/launch/hearing/` (Arena) | hearing axis dispatch and the include of `launch/hearing.launch.py` |
+| `arena_runtime/arena_runtime/arena_runtime/hearing/` (Arena) | node-side hearing axis, the single gateway into this package |
