@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import array
-import asyncio
 import math
-import time
 import uuid
 
 import numpy as np
 import pytest
+
+_spin_until = pytest.importorskip("arena_rclpy_mixins.testing").spin_until
 
 FS = 16000
 HOP = 1600
@@ -24,15 +24,6 @@ def _ros_gate():
     pytest.importorskip("arena_robots_msgs.msg")
     pytest.importorskip("arena_runtime_msgs.msg")
     pytest.importorskip("task_generator_msgs.msg")
-
-
-@pytest.fixture
-def loop():
-    event_loop = asyncio.new_event_loop()
-    try:
-        yield event_loop
-    finally:
-        event_loop.close()
 
 
 @pytest.fixture
@@ -138,16 +129,6 @@ def _scene(az_deg: float = 90.0, *, identical: bool = False) -> np.ndarray:
 def _feed(node, robot, audio: np.ndarray, *, block: int = 320, interleaved: bool = True) -> None:
     for i in range(0, audio.shape[0], block):
         node._cb_audio(robot, _frame(audio[i : i + block], START_NS + i * NS // FS, interleaved=interleaved))
-
-
-def _spin_until(rclpy, nodes, predicate, timeout_sec: float = 10.0) -> None:
-    deadline = time.monotonic() + timeout_sec
-    while time.monotonic() < deadline:
-        for node in nodes:
-            rclpy.spin_once(node, timeout_sec=0.02)
-        if predicate():
-            return
-    raise AssertionError("timed out waiting for ROS round-trip")
 
 
 class _Probe:

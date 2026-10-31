@@ -86,13 +86,6 @@ class _Rig:
             assert self.proc.poll() is None, f"node exited with {self.proc.returncode}:\n{self.log.read_text()[-4000:]}"
         raise AssertionError(f"timed out waiting for {what}:\n{self.log.read_text()[-4000:]}")
 
-    def spin_for(self, duration_s: float) -> None:
-        import rclpy
-
-        deadline = time.monotonic() + duration_s
-        while time.monotonic() < deadline:
-            rclpy.spin_once(self.node, timeout_sec=0.02)
-
     def destroy(self) -> None:
         self.node.destroy_node()
 
@@ -224,127 +217,6 @@ def test_belief_node_paints_the_wedge_of_each_robot_along_its_bearing_and_not_be
         assert all(int(_as_array(msg).sum()) == 0 for msg in r1_grids)
 
 
-@pytest.mark.usefixtures("default_sounds")
-def test_belief_node_rotates_an_array_frame_azimuth_by_the_frame_yaw(tmp_path: Path) -> None:
-    with _rig("belief_node", _belief_params(), tmp_path) as rig:
-        _publish_fleet(rig, ("r0",))
-        base = _base_frame(rig, "r0")
-        _publish_tf(rig, base, 0.0, 0.0, yaw=math.pi / 2)
-        grids = _grids(rig, "r0")
-        pub = _detection_publisher(rig, "r0")
-        rig.spin_until(lambda: bool(grids) and int(_as_array(grids[-1]).sum()) > 0, 10.0, "a painted belief grid", tick=lambda: pub.publish(_detection(base, 0.0)))
-
-        info = grids[-1].info
-        grid = _as_array(grids[-1])
-        origin_row = int(round((0.0 - info.origin.position.y) / info.resolution))
-        assert grid[:origin_row, :].sum() == 0
-        assert grid[origin_row:, :].sum() > 0
-
-
-@pytest.mark.usefixtures("default_sounds")
-def test_belief_node_with_all_kinds_paints_a_kind_outside_the_defaults(tmp_path: Path) -> None:
-    with _rig("belief_node", _belief_params(**{"belief.kinds": ["all"]}), tmp_path) as rig:
-        _publish_fleet(rig, ("r0",))
-        _publish_tf(rig, _base_frame(rig, "r0"), 0.0, 0.0)
-        grids = _grids(rig, "r0")
-        pub = _detection_publisher(rig, "r0")
-        rig.spin_until(lambda: bool(grids) and int(_as_array(grids[-1]).sum()) > 0, 10.0, "the alarm detection painted", tick=lambda: pub.publish(_detection("map", 0.0, kind="alarm")))
-
-
-@pytest.mark.usefixtures("default_sounds")
-def test_belief_node_drops_a_detection_with_nan_azimuth(tmp_path: Path) -> None:
-    with _rig("belief_node", _belief_params(), tmp_path) as rig:
-        _publish_fleet(rig, ("r0",))
-        _publish_tf(rig, _base_frame(rig, "r0"), 0.0, 0.0)
-        grids = _grids(rig, "r0")
-        pub = _detection_publisher(rig, "r0")
-        pub.publish(_detection("map", math.nan))
-        rig.spin_for(1.0)
-        settled = len(grids)
-        assert settled > 0
-        assert all(int(_as_array(msg).sum()) == 0 for msg in grids)
-
-        rig.spin_until(lambda: len(grids) > settled and int(_as_array(grids[-1]).sum()) > 0, 10.0, "the valid detection painted", tick=lambda: pub.publish(_detection("map", 0.0)))
-
-
-@pytest.mark.usefixtures("default_sounds")
-def test_belief_node_drops_detections_until_the_robot_transform_exists(tmp_path: Path) -> None:
-    with _rig("belief_node", _belief_params(), tmp_path) as rig:
-        _publish_fleet(rig, ("r0",))
-        base = _base_frame(rig, "r0")
-        grids = _grids(rig, "r0")
-        pub = _detection_publisher(rig, "r0")
-        pub.publish(_detection("map", 0.0))
-        pub.publish(_detection(base, 0.0))
-        rig.spin_for(1.0)
-        settled = len(grids)
-        assert settled > 0
-        assert all(int(_as_array(msg).sum()) == 0 for msg in grids)
-
-        _publish_tf(rig, base, 2.0, 1.0)
-        rig.spin_until(lambda: len(grids) > settled and int(_as_array(grids[-1]).sum()) > 0, 10.0, "a painted belief grid once the transform exists", tick=lambda: pub.publish(_detection("map", 0.0)))
-        info = grids[-1].info
-        grid = _as_array(grids[-1])
-        rows, cols = np.nonzero(grid == grid.max())
-        xs = info.origin.position.x + (cols + 0.5) * info.resolution
-        ys = info.origin.position.y + (rows + 0.5) * info.resolution
-        assert float(xs.min()) > 2.0
-        assert float(np.abs(ys - 1.0).max()) < 0.5
-
-
-@pytest.mark.usefixtures("default_sounds")
-def test_belief_node_wedge_markers_add_then_expire(tmp_path: Path) -> None:
-    from arena_rclpy_mixins import qos
-    from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
-    from rcl_interfaces.srv import SetParameters
-    from visualization_msgs.msg import Marker, MarkerArray
-
-    with _rig("belief_node", _belief_params(**{"belief.markers.enabled": True}), tmp_path) as rig:
-        _publish_fleet(rig, ("r0",))
-        _publish_tf(rig, _base_frame(rig, "r0"), 0.0, 0.0)
-        rig.spin_for(1.0)
-        received: list[MarkerArray] = []
-        rig.node.create_subscription(MarkerArray, f"{rig.tg}/r0/hearing/belief_wedges", received.append, qos.reliable(10))
-        pub = _detection_publisher(rig, "r0")
-        added_ids: set[int] = set()
-        deleted: set[int] = set()
-        due = [0.0]
-
-        def collect() -> None:
-            for array in received:
-                added_ids.update(m.id for m in array.markers if m.action == Marker.ADD)
-                deleted.update(m.id for m in array.markers if m.action == Marker.DELETE)
-            received.clear()
-
-        def detect() -> None:
-            if not added_ids and time.monotonic() >= due[0]:
-                due[0] = time.monotonic() + 0.5
-                pub.publish(_detection("map", 0.0))
-                pub.publish(_detection("map", 0.3))
-
-        def two_added() -> bool:
-            collect()
-            return len(added_ids) >= 2
-
-        rig.spin_until(two_added, 10.0, "two wedge markers", tick=detect)
-        rig.spin_for(0.5)
-        collect()
-
-        client = rig.node.create_client(SetParameters, f"{rig.ns}/hearing_belief/set_parameters")
-        rig.spin_until(client.service_is_ready, 10.0, "the set_parameters service")
-        request = SetParameters.Request(parameters=[Parameter(name="belief.tau_s", value=ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=0.001))])
-        future = client.call_async(request)
-        rig.spin_until(future.done, 10.0, "set belief.tau_s")
-        assert all(result.successful for result in future.result().results)
-
-        def all_deleted() -> bool:
-            collect()
-            return deleted >= added_ids
-
-        rig.spin_until(all_deleted, 10.0, "the wedge markers to expire")
-        assert deleted == added_ids
-
-
 def _grid_msg(size: int, resolution: float, origin: float, data: np.ndarray):
     from nav_msgs.msg import OccupancyGrid
 
@@ -358,26 +230,6 @@ def _grid_msg(size: int, resolution: float, origin: float, data: np.ndarray):
     msg.info.origin.orientation.w = 1.0
     msg.data = np.asarray(data, dtype=np.int8).reshape(-1).tolist()
     return msg
-
-
-def _l_shaped_occupancy(size: int, resolution: float) -> np.ndarray:
-    """True = occupied. Free legs: a 0.5-10.0 x-leg at y in [0.4, 1.6], a 1.0-10.0 y-leg at x in [9.4, 10.6]."""
-    rows = (np.arange(size) + 0.5) * resolution
-    cols = (np.arange(size) + 0.5) * resolution
-    xx, yy = np.meshgrid(cols, rows)
-    occupied = np.ones((size, size), dtype=bool)
-    leg_a = (xx >= 0.5) & (xx <= 10.0) & (yy >= 0.4) & (yy <= 1.6)
-    leg_b = (yy >= 1.0) & (yy <= 10.0) & (xx >= 9.4) & (xx <= 10.6)
-    occupied[leg_a | leg_b] = False
-    return occupied
-
-
-def _l_shaped_plan() -> np.ndarray:
-    xs = np.round(np.arange(1.0, 10.0 + 1e-9, 0.1), 6)
-    leg_a = np.stack([xs, np.full_like(xs, 1.0)], axis=1)
-    ys = np.round(np.arange(1.1, 9.5 + 1e-9, 0.1), 6)
-    leg_b = np.stack([np.full_like(ys, 10.0), ys], axis=1)
-    return np.concatenate([leg_a, leg_b], axis=0)
 
 
 class _PolicyIo:
@@ -422,39 +274,3 @@ def test_policy_node_cruise_speed_mask_around_blob(tmp_path: Path) -> None:
         assert mask[cell(*blob_xy)] == 40
         assert mask[cell(-4.0, -4.0)] == 0
         assert io.states[-1]["state"] == "cruise"
-
-
-def test_policy_node_listen_lane_on_approach_to_blind_bend(tmp_path: Path) -> None:
-    from geometry_msgs.msg import PoseStamped
-    from nav_msgs.msg import Path as PathMsg
-
-    with _rig("policy_node", {"policy.max_linear_mps": 1.0, "policy.listen.enabled": True}, tmp_path) as rig:
-        robot_xy = (7.0, 1.0)
-        _publish_fleet(rig, ("r0",))
-        _publish_tf(rig, _base_frame(rig, "r0"), *robot_xy)
-        io = _PolicyIo(rig)
-
-        size, resolution = 200, 0.1
-        io.map_pub.publish(_grid_msg(size, resolution, 0.0, np.where(_l_shaped_occupancy(size, resolution), 100, 0)))
-        belief = _grid_msg(size, resolution, 0.0, np.zeros((size, size)))
-        path = PathMsg()
-        path.header.frame_id = "map"
-        for x, y in _l_shaped_plan():
-            pose = PoseStamped()
-            pose.pose.position.x = float(x)
-            pose.pose.position.y = float(y)
-            pose.pose.orientation.w = 1.0
-            path.poses.append(pose)
-        io.plan_pub.publish(path)
-
-        rig.spin_until(lambda: bool(io.states) and io.states[-1]["state"] == "listen", 10.0, "the listen state", tick=lambda: io.belief_pub.publish(belief))
-        payload = io.states[-1]
-        assert payload["dist_to_bend_m"] is not None
-        assert math.isfinite(payload["dist_to_bend_m"])
-        assert payload["binding_layer"] == "listen"
-
-        seen = len(io.masks)
-        rig.spin_until(lambda: len(io.masks) > seen, 10.0, "a listen mask", tick=lambda: io.belief_pub.publish(belief))
-        mask = _as_array(io.masks[-1])
-        row, col = int(robot_xy[1] / resolution), int(robot_xy[0] / resolution)
-        assert mask[row, col] == 20

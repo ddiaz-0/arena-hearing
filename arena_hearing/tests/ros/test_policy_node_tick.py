@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import math
-import time
 import uuid
 
 import numpy as np
 import pytest
+
+_spin_until = pytest.importorskip("arena_rclpy_mixins.testing").spin_until
 
 SIZE = 200
 RES = 0.1
@@ -23,15 +23,6 @@ def _ros_gate():
     pytest.importorskip("arena_robots_msgs.msg")
     pytest.importorskip("task_generator_msgs.msg")
     pytest.importorskip("visualization_msgs.msg")
-
-
-@pytest.fixture
-def loop():
-    event_loop = asyncio.new_event_loop()
-    try:
-        yield event_loop
-    finally:
-        event_loop.close()
 
 
 @pytest.fixture
@@ -151,16 +142,6 @@ def _corridor(node, robot, robot_xy: tuple[float, float] = (7.0, 1.0), belief: n
 
 def _cell(x: float, y: float) -> tuple[int, int]:
     return int(y / RES), int(x / RES)
-
-
-def _spin_until(rclpy, nodes, predicate, timeout_sec: float = 10.0) -> None:
-    deadline = time.monotonic() + timeout_sec
-    while time.monotonic() < deadline:
-        for node in nodes:
-            rclpy.spin_once(node, timeout_sec=0.02)
-        if predicate():
-            return
-    raise AssertionError("timed out waiting for ROS round-trip")
 
 
 def _published(robot) -> tuple[np.ndarray, dict]:

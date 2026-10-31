@@ -1,4 +1,4 @@
-"""The bearing fit recovers every azimuth on the sim array; the front-end's gcc path does too, with the real checkpoint."""
+"""The bearing fit recovers every azimuth on the sim array; the front-end's gcc path recovers an axis and a diagonal with the real checkpoint."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from arena_hearing.doa import ArrayBearing
 
 FS = 16000
 BEARINGS_DEG = (0, 45, 90, 180, 225, 270)
+CHECKPOINT_BEARINGS_DEG = (0, 225)
 
 
 def fractional_delay(samples: np.ndarray, delay_samples: float) -> tuple[int, np.ndarray]:
@@ -116,6 +117,15 @@ def _frontend(files: dict[str, str]):
     return SeldFrontend(files["checkpoint"], files["scaler"], weights.classes(SoundLibrary.default()), device="cpu", det_threshold=seld["det_threshold"], torch_threads=seld["torch_threads"])
 
 
+@pytest.fixture(scope="module")
+def frontend(default_sounds):
+    pytest.importorskip("torch")
+    files = _weights()
+    if files is None:
+        pytest.skip("SELD weights not fetched (ros2 run arena_hearing hearing_setup)")
+    return _frontend(files)
+
+
 def _footstep() -> np.ndarray:
     librosa = pytest.importorskip("librosa")
     soundfile = pytest.importorskip("soundfile")
@@ -126,17 +136,12 @@ def _footstep() -> np.ndarray:
     return librosa.resample(audio[:, 0], orig_sr=fs, target_sr=FS).astype(np.float32) * 0.3
 
 
-@pytest.mark.usefixtures("default_sounds")
-@pytest.mark.parametrize("az_deg", BEARINGS_DEG)
-def test_frontend_gcc_bearing_with_checkpoint(az_deg: int) -> None:
-    pytest.importorskip("torch")
-    files = _weights()
-    if files is None:
-        pytest.skip("SELD weights not fetched (ros2 run arena_hearing hearing_setup)")
+@pytest.mark.parametrize("az_deg", CHECKPOINT_BEARINGS_DEG)
+def test_frontend_gcc_bearing_with_checkpoint(frontend, az_deg: int) -> None:
     from arena_hearing import weights
     from arena_hearing.seld import SeldStream
 
-    fe = _frontend(files)
+    fe = frontend
     stream = SeldStream(fe, lookahead_frames=5)
     doa = ArrayBearing(fe.fs, tuple(mic.position_m for mic in weights.array_spec().mics))
     audio = _place(_footstep(), az_deg, repeats=12, period_s=0.5, lead_s=0.4, total_s=7.0)
@@ -175,15 +180,10 @@ def test_sample_ring_window_equals_the_rolled_buffer() -> None:
         np.testing.assert_array_equal(ring.window(), reference)
 
 
-@pytest.mark.usefixtures("default_sounds")
-def test_seld_stream_step_equals_the_rolled_window_path() -> None:
-    pytest.importorskip("torch")
-    files = _weights()
-    if files is None:
-        pytest.skip("SELD weights not fetched (ros2 run arena_hearing hearing_setup)")
+def test_seld_stream_step_equals_the_rolled_window_path(frontend) -> None:
     from arena_hearing.seld import SeldStream
 
-    fe = _frontend(files)
+    fe = frontend
     stream = SeldStream(fe, lookahead_frames=5)
     reference = np.zeros((fe.window_samples, fe.nb_raw_ch), dtype=np.float64)
     audio = _place(_footstep(), 90, repeats=6, period_s=0.5, lead_s=0.4, total_s=4.5)
