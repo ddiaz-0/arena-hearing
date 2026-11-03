@@ -9,8 +9,7 @@ from arena_rclpy_mixins import ArenaMixinNode, qos
 from arena_robots.audio import NS_PER_S
 from arena_robots.fleet import RobotBinding, robot_bindings
 from arena_runtime.lockstep import register_channels
-from arena_runtime_msgs.msg import LockstepChannel, LockstepHeartbeat
-from task_generator_msgs.msg import RobotFleet
+from arena_runtime_msgs.msg import LockstepChannel, LockstepHeartbeat, RobotFleet
 
 from arena_hearing.constants import STATE_ROBOTS
 

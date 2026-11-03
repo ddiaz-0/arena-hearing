@@ -43,7 +43,7 @@ class DiagnosticsGroup(ParamGroup):
 
 class HearingGroup(ParamGroup):
     FRONTEND = Param[Frontend]("hearing.frontend", Frontend.BUS, parse=Frontend)
-    TG_NODE = Param[str]("hearing.tg_node", "task_generator_node")
+    TG_NODE = Param[str]("hearing.tg_node", "arena_env_node")
 
 
 def _level(value: object) -> float:

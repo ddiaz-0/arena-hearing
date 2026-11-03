@@ -62,7 +62,7 @@ to dB SPL with the MEMS sensitivity the frame carries.
 
 ## Running in an Arena env
 
-`robot.hearing:=bus|srp|seld` makes the task generator's hearing axis include
+`robot.hearing:=bus|srp|seld` makes the env launch's hearing axis include
 `launch/hearing.launch.py` per env and merge `config/nav2_overlay.yaml` (a
 `SpeedFilter` on the local costmap and the controller's `speed_limit_topic`,
 both below the robot namespace) into every robot's Nav2 parameters:
@@ -84,7 +84,7 @@ arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
 | Argument | Default | Effect |
 |---|---|---|
 | `env.ns` | `/arena/env_0` | Env namespace, the hearing nodes live in it |
-| `tg_node` | `task_generator_node` | Task generator node, the robot topics live below it |
+| `tg_node` | `arena_env_node` | Env node, the robot topics live below it |
 | `frontend` | `bus` | `bus`, `srp` or `seld`, `srp` and `seld` also start their front-end node |
 | `policy` | `full` | Mask layers: `belief` only, `listen` adds the corner listen cap, `full` adds yield |
 | `robot.hearing.seld.device` | empty (`cuda`) | Torch device of the SELDnet front-end |
@@ -106,7 +106,7 @@ never reach the robot adapters. The launch also derives `hearing.frontend`,
 
 ## Topics
 
-Below the task generator node `/arena/env_0/task_generator_node`, `<r>` is the
+Below the env node `/arena/env_0/arena_env_node`, `<r>` is the
 robot namespace:
 
 | Direction | Topic | Note |
@@ -229,5 +229,5 @@ tests call the hearing tools against the same subprocesses.
 | `config/weights.yaml` | SELDnet weights and pins |
 | `config/nav2_overlay.yaml` | Nav2 SpeedFilter overlay |
 | `arena_hearing/params.py` | every hearing node parameter and default |
-| `task_generator/launch/hearing/` (Arena) | hearing axis dispatch and the include of `launch/hearing.launch.py` |
-| `task_generator/task_generator/simulators/hearing/` (Arena) | node-side hearing axis, the single gateway into this package |
+| `arena_runtime/arena_runtime/launch/hearing/` (Arena) | hearing axis dispatch and the include of `launch/hearing.launch.py` |
+| `arena_runtime/arena_runtime/arena_runtime/hearing/` (Arena) | node-side hearing axis, the single gateway into this package |

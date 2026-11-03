@@ -22,7 +22,7 @@ pytest.importorskip("nav2_msgs.msg")
 pytest.importorskip("tf2_msgs.msg")
 pytest.importorskip("arena_robots_msgs.msg")
 pytest.importorskip("arena_runtime_msgs.msg")
-pytest.importorskip("task_generator_msgs.msg")
+pytest.importorskip("arena_runtime_msgs.msg")
 
 from arena_mcp.core import ROS, ToolError
 
@@ -101,11 +101,11 @@ def rig(tmp_path_factory, default_sounds):
     from geometry_msgs.msg import TransformStamped
     from nav_msgs.msg import OccupancyGrid
     from rclpy.executors import SingleThreadedExecutor
-    from task_generator_msgs.msg import RobotDescriptor, RobotFleet, RobotState
+    from arena_runtime_msgs.msg import RobotDescriptor, RobotFleet, RobotState
     from tf2_msgs.msg import TFMessage
 
     ns = f"/t_{uuid.uuid4().hex[:8]}"
-    tg = f"{ns}/task_generator_node"
+    tg = f"{ns}/arena_env_node"
     prefix = f"{ns.strip('/')}/{ROBOT}"
     tmp = tmp_path_factory.mktemp("hearing")
     logs = [tmp / "belief_node.log", tmp / "policy_node.log"]

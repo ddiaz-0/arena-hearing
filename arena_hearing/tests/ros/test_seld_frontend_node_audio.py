@@ -21,7 +21,7 @@ START_NS = 50 * NS
 
 @pytest.fixture(scope="module")
 def node(rclpy_context, default_sounds):
-    for module in ("torch", "arena_robots_msgs.msg", "arena_runtime_msgs.msg", "task_generator_msgs.msg"):
+    for module in ("torch", "arena_robots_msgs.msg", "arena_runtime_msgs.msg", "arena_runtime_msgs.msg"):
         pytest.importorskip(module)
     import rclpy
     from arena_rclpy_mixins import ArenaMixinNode
@@ -53,7 +53,7 @@ def node(rclpy_context, default_sounds):
 
 
 def _fleet(prefix: str, *names: str):
-    from task_generator_msgs.msg import RobotFleet, RobotState
+    from arena_runtime_msgs.msg import RobotFleet, RobotState
 
     fleet = RobotFleet()
     for name in names:
