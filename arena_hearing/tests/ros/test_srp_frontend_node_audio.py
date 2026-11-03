@@ -23,7 +23,7 @@ def _ros_gate():
     pytest.importorskip("rclpy")
     pytest.importorskip("arena_robots_msgs.msg")
     pytest.importorskip("arena_runtime_msgs.msg")
-    pytest.importorskip("task_generator_msgs.msg")
+    pytest.importorskip("arena_runtime_msgs.msg")
 
 
 @pytest.fixture
@@ -58,7 +58,7 @@ def srp(rclpy_context, loop):
 
 
 def _fleet(prefix: str, *names: str):
-    from task_generator_msgs.msg import RobotFleet, RobotState
+    from arena_runtime_msgs.msg import RobotFleet, RobotState
 
     fleet = RobotFleet()
     for name in names:

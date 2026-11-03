@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-TG = "task_generator_node"
+TG = "arena_env_node"
 MODEL = "jackal"
 STARTUP_S = 60.0
 
@@ -31,7 +31,7 @@ def _ros_gate():
     pytest.importorskip("std_msgs.msg")
     pytest.importorskip("tf2_msgs.msg")
     pytest.importorskip("arena_robots_msgs.msg")
-    pytest.importorskip("task_generator_msgs.msg")
+    pytest.importorskip("arena_runtime_msgs.msg")
     pytest.importorskip("visualization_msgs.msg")
 
 
@@ -107,7 +107,7 @@ def _prefix(rig: _Rig, name: str) -> str:
 
 
 def _fleet(rig: _Rig, names: tuple[str, ...]):
-    from task_generator_msgs.msg import RobotFleet, RobotState
+    from arena_runtime_msgs.msg import RobotFleet, RobotState
 
     fleet = RobotFleet()
     for name in names:
@@ -128,7 +128,7 @@ def _base_frame(rig: _Rig, name: str) -> str:
 
 def _publish_fleet(rig: _Rig, names: tuple[str, ...]) -> None:
     from arena_rclpy_mixins import qos
-    from task_generator_msgs.msg import RobotFleet
+    from arena_runtime_msgs.msg import RobotFleet
 
     pub = rig.node.create_publisher(RobotFleet, f"{rig.tg}/state/robots", qos.latched())
     pub.publish(_fleet(rig, names))

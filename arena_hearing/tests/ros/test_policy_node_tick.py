@@ -21,7 +21,7 @@ def _ros_gate():
     pytest.importorskip("scipy")
     pytest.importorskip("nav2_msgs.msg")
     pytest.importorskip("arena_robots_msgs.msg")
-    pytest.importorskip("task_generator_msgs.msg")
+    pytest.importorskip("arena_runtime_msgs.msg")
     pytest.importorskip("visualization_msgs.msg")
 
 
@@ -57,7 +57,7 @@ def policy(rclpy_context, loop):
 
 
 def _fleet(prefix: str, *robots: tuple[str, str]):
-    from task_generator_msgs.msg import RobotFleet, RobotState
+    from arena_runtime_msgs.msg import RobotFleet, RobotState
 
     fleet = RobotFleet()
     for name, model in robots:

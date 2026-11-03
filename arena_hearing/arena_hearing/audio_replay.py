@@ -1,6 +1,6 @@
 """Publish a wav as ``AudioFrame`` blocks on a robot's raw array stream, the renderer's wire format, for front-end tests.
 
-    ros2 run arena_hearing hearing_audio_replay <wav> <robot> [--array four_mic] [--tg task_generator_node] [--block 320] [--speed 1.0]
+    ros2 run arena_hearing hearing_audio_replay <wav> <robot> [--array four_mic] [--tg arena_env_node] [--block 320] [--speed 1.0]
 
 Every channel of the wav goes out. ``--array`` names the array the recording
 was made on (a preset or a yaml path), its channel names and microphone

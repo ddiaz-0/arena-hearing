@@ -57,7 +57,7 @@ def generate_launch_description() -> launch.LaunchDescription:
     return launch.LaunchDescription(
         [
             launch.actions.DeclareLaunchArgument("env.ns", default_value="/arena/env_0", description="Env namespace, the hearing nodes live in it."),
-            launch.actions.DeclareLaunchArgument("tg_node", default_value="task_generator_node", description="Task generator node name, the auditory topics live below it."),
+            launch.actions.DeclareLaunchArgument("tg_node", default_value="arena_env_node", description="Task generator node name, the auditory topics live below it."),
             launch.actions.DeclareLaunchArgument("frontend", default_value=Frontend.BUS.value, choices=[frontend.value for frontend in Frontend], description="Detection source: bus is the simulator bus, srp the onset + GCC-PHAT front-end on any array, seld the SELDnet front-end on the array its weights were trained on."),
             launch.actions.DeclareLaunchArgument("policy", default_value="full", choices=list(_POLICIES), description="Mask layers: belief only, plus the corner listen cap, plus yield."),
             *declare_launch_arguments(all_params(), prefix=_PREFIX),

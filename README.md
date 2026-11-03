@@ -84,7 +84,7 @@ arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
 | Argument | Default | Effect |
 |---|---|---|
 | `env.ns` | `/arena/env_0` | Env namespace, the hearing nodes live in it |
-| `tg_node` | `task_generator_node` | Task generator node, the robot topics live below it |
+| `tg_node` | `arena_env_node` | Task generator node, the robot topics live below it |
 | `frontend` | `bus` | `bus`, `srp` or `seld`, `srp` and `seld` also start their front-end node |
 | `policy` | `full` | Mask layers: `belief` only, `listen` adds the corner listen cap, `full` adds yield |
 | `robot.hearing.seld.device` | empty (`cuda`) | Torch device of the SELDnet front-end |
@@ -106,7 +106,7 @@ never reach the robot adapters. The launch also derives `hearing.frontend`,
 
 ## Topics
 
-Below the task generator node `/arena/env_0/task_generator_node`, `<r>` is the
+Below the task generator node `/arena/env_0/arena_env_node`, `<r>` is the
 robot namespace:
 
 | Direction | Topic | Note |
