@@ -327,10 +327,14 @@ def test_timer_decays_the_mass_by_the_elapsed_time_and_applies_new_parameters(be
     _tf(node, robot.binding.base_frame, 0.0, 0.0, 0.0)
     node._cb_detection(robot, _detection("map", 0.0))
     before = robot.grid.mass.copy()
-    node._last_update = node.get_clock().now() - Duration(seconds=2.0)
+    started = node.get_clock().now() - Duration(seconds=2.0)
+    node._last_update = started
     node._on_timer()
+    tau = float(robot.grid.config.tau_s)
+    elapsed = (node._last_update - started).nanoseconds * 1e-9
     ratio = float(robot.grid.mass.sum() / before.sum())
-    assert ratio == pytest.approx(math.exp(-1.0), rel=0.02)
+    assert elapsed >= 2.0
+    assert ratio == pytest.approx(math.exp(-elapsed / tau), rel=1e-3)
 
     node.conf.Belief.TAU_S.value = 4.0
     node._on_timer()
