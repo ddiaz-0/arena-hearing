@@ -24,6 +24,7 @@ arena_hearing/                  this repository
     |   |-- fleet.py            per-robot lifecycle and lockstep channels
     |   |-- belief_grid.py belief_node.py      belief grid and its node
     |   |-- policy.py corners.py policy_node.py speed-filter policy and its node
+    |   |-- search/ search_driver_node.py      search driver and its node
     |   |-- doa.py onset.py timeline.py srp_frontend_node.py   srp front-end
     |   |-- seld.py dcase.py weights.py seld_frontend_node.py  seld front-end
     |   |-- audio_replay.py     wav replay as AudioFrame
@@ -93,6 +94,11 @@ arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
 | `robot.hearing.srp.hop_s` | empty (`0.1`) | srp hop length in seconds |
 | `robot.hearing.srp.floor_window_s` | empty (`5.0`) | srp noise-floor median window in seconds |
 | `robot.hearing.srp.onset_db` | empty (`6.0`) | srp onset threshold above the floor in dB |
+| `robot.hearing.driver.enabled` | empty (`false`) | Start the search driver |
+| `robot.hearing.driver.goal_rule` | empty (`nearest`) | `nearest` frontier (no audio) or `belief` |
+| `robot.hearing.driver.stop_rule` | empty (`never`) | `never`, `every_goal`, `on_call` or `fixed_bend` |
+| `robot.hearing.driver.listen_s` | empty (`3.0`) | Seconds halted to listen per stop |
+| `robot.hearing.driver.snap` | empty (`false`) | Snap a heard call onto a SLAM-map opening or frontier |
 
 The `robot.hearing.*` arguments are declared from the parameters in
 [`params.py`](arena_hearing/arena_hearing/params.py) that carry a description.
@@ -115,6 +121,7 @@ robot namespace:
 | in | `<r>/hearing/<frontend>/detections` | `arena_robots_msgs/SoundDetection` |
 | in | `map`, `state/resetting`, `state/robots` | grid geometry, reset, fleet |
 | in | `<r>/plan` | Nav2 global plan, for blind-bend detection |
+| in | `<r>/map` | the robot's SLAM map, read by the search driver |
 | out | `<r>/hearing/srp/detections`, `<r>/hearing/seld/detections` | the front-ends |
 | out | `<r>/lockstep/hearing` | front-end heartbeat per robot |
 | out | `<r>/hearing/belief_grid`, `<r>/hearing/belief_wedges` | RViz, the wedges only while subscribed |
@@ -122,6 +129,8 @@ robot namespace:
 | out | `<r>/hearing/costmap_filter_info` | `CostmapFilterInfo`, latched, points the SpeedFilter at the mask |
 | out | `<r>/hearing/policy_state` | JSON: state, distances, masses, level slope, limit, binding layer, yield count and time |
 | out | `<r>/hearing/policy_markers` | approach lane and hold band, only while subscribed |
+| out | `<r>/hearing/search_state` | JSON: phase, goal, stops, listened time, goals sent and failed, calls, Nav2 status |
+| out | `<r>/navigate_to_pose` | search driver goals |
 | Nav2 | `<r>/hearing/speed_limit` | SpeedFilter to controller |
 
 ## Belief and policy
@@ -154,6 +163,43 @@ below `policy.release_fraction`, or the level fell for `policy.recede_s`
 the bend at listen speed. Nav2 reads 0 % as no limit, so the hold is a
 0.03 m/s creep. `robot.hearing.policy:=belief|listen|full` picks the active
 layers.
+
+## Search driver
+
+`hearing_search_driver` looks for a calling person on a map the robot builds
+itself. It runs with `robot.mobile.mapping:=slam`, `task.robots:=search` (a
+judge-only goto, so the driver is the only writer of the robot's Nav2 goal) and
+the standalone belief grid:
+
+```bash
+arena launch sim:=gazebo robot:=jackal world:=hospital_1 \
+    task.robots:=search task.obstacles:=scenario task.scenario.file:=search_caller \
+    robot.mobile.mapping:=slam acoustics:=arena robot.hearing:=bus \
+    robot.hearing.policy:=belief robot.hearing.belief.standalone.enabled:=true \
+    robot.hearing.driver.enabled:=true robot.hearing.driver.goal_rule:=belief \
+    robot.hearing.driver.stop_rule:=fixed_bend
+```
+
+Each tick it finds the frontiers of the map (free cells next to unknown ones,
+8-connected, at least `driver.min_frontier_cells`) and its openings (free gaps
+of `driver.opening_min_width_m` to `driver.opening_max_width_m` between
+occupied cells with wider space within `driver.opening_depth_m` on both sides,
+axis-aligned). Goals reached or failed within `driver.reached_radius_m` are not
+chosen again in the episode. Goal rules:
+
+- `nearest`: the closest frontier, the baseline without audio.
+- `belief`: the belief peak once it reaches `driver.locate_threshold` (moved
+  to the nearest frontier when it lies off the mapped free space, Nav2 rejects
+  goals outside the map), else with `driver.snap` the opening or frontier the
+  latest call points at within `driver.snap_max_error_deg`, else the frontier
+  with the most belief mass within `driver.belief_radius_m` per
+  `1 + distance / driver.distance_scale_m`, else the nearest.
+
+Stop rules decide when the driver cancels its goal and halts for
+`driver.listen_s`: `never`, `every_goal` (each new goal), `on_call` (a call
+among `driver.kinds` was heard since the last stop) and `fixed_bend` (once,
+`driver.bend_stop_before_m` along the plan before each blind bend of
+`corners.find_blind_bend`). The driver is done when no frontier is left.
 
 ## Evaluation
 

@@ -1,0 +1,138 @@
+"""Search state machine: select a goal, drive to it, halt to listen when the stop rule fires."""
+
+from __future__ import annotations
+
+import enum
+import math
+
+import attrs
+import numpy as np
+
+from arena_hearing.search.frontiers import MapGrid, find_frontiers, find_openings
+from arena_hearing.search.goals import BeliefMap, GoalRule, GoalView, Heard
+from arena_hearing.search.stops import StopRule, StopView
+
+
+class Phase(enum.StrEnum):
+    SELECT = "select"
+    DRIVE = "drive"
+    LISTEN = "listen"
+    DONE = "done"
+
+
+class NavStatus(enum.StrEnum):
+    IDLE = "idle"
+    ACTIVE = "active"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+@attrs.frozen
+class Send:
+    xy: tuple[float, float]
+
+
+@attrs.frozen
+class Cancel:
+    pass
+
+
+@attrs.frozen
+class Tick:
+    now: float
+    robot_xy: tuple[float, float]
+    grid: MapGrid | None
+    belief: BeliefMap | None
+    heard: Heard | None
+    calls: int  # calls heard since the driver started, cumulative
+    plan_xy: np.ndarray | None
+    status: NavStatus  # of the last goal sent
+
+
+@attrs.frozen(kw_only=True)
+class DriverConfig:
+    listen_s: float
+    min_frontier_cells: int
+    reached_radius_m: float
+    opening_min_width_m: float
+    opening_max_width_m: float
+    opening_depth_m: float
+
+
+@attrs.define
+class SearchDriver:
+    goal_rule: GoalRule
+    stop_rule: StopRule
+    config: DriverConfig
+    phase: Phase = Phase.SELECT
+    goal: tuple[float, float] | None = None
+    fresh_goal: bool = False
+    blocked: list[tuple[float, float]] = attrs.Factory(list)
+    calls_mark: int = 0
+    listen_start: float = 0.0
+    stops: int = 0
+    listened_s: float = 0.0
+    goals_sent: int = 0
+    failed: int = 0
+
+    def reset(self) -> None:
+        self.phase, self.goal, self.fresh_goal = Phase.SELECT, None, False
+        self.blocked.clear()
+        self.calls_mark = self.stops = self.goals_sent = self.failed = 0
+        self.listened_s = 0.0
+        self.stop_rule.reset()
+
+    def step(self, tick: Tick) -> Send | Cancel | None:
+        if tick.grid is None or self.phase is Phase.DONE:
+            return None
+        if self.phase is Phase.LISTEN:
+            if tick.now - self.listen_start < self.config.listen_s:
+                return None
+            self.listened_s += tick.now - self.listen_start
+            self.calls_mark = tick.calls
+            self.phase = Phase.SELECT
+        if self.phase is Phase.DRIVE and self.goal is not None:
+            reached = tick.status is NavStatus.SUCCEEDED or math.dist(tick.robot_xy, self.goal) <= self.config.reached_radius_m
+            if reached or tick.status is NavStatus.FAILED:
+                self.failed += tick.status is NavStatus.FAILED
+                self.blocked.append(self.goal)
+                self.phase = Phase.SELECT
+            else:
+                view = StopView(robot_xy=tick.robot_xy, goal_changed=self.fresh_goal, calls=tick.calls - self.calls_mark, plan_xy=tick.plan_xy, grid=tick.grid)
+                self.fresh_goal = False
+                if self.stop_rule.should_stop(view):
+                    self.phase, self.listen_start = Phase.LISTEN, tick.now
+                    self.stops += 1
+                    return Cancel()
+                if tick.status is NavStatus.IDLE:
+                    return Send(self.goal)
+                return None
+        return self._select(tick, tick.grid)
+
+    def _select(self, tick: Tick, grid: MapGrid) -> Send | None:
+        frontiers = [f for f in find_frontiers(grid, self.config.min_frontier_cells) if not self._is_blocked(f.goal_xy)]
+        c = self.config
+        openings = [o for o in find_openings(grid, c.opening_min_width_m, c.opening_max_width_m, c.opening_depth_m) if not self._is_blocked(o.xy)]
+        goal = self.goal_rule.choose(GoalView(robot_xy=tick.robot_xy, grid=grid, frontiers=frontiers, openings=openings, belief=tick.belief, heard=tick.heard))
+        if goal is None:
+            self.phase = Phase.DONE
+            return None
+        self.fresh_goal = self.goal is None or math.dist(goal, self.goal) > c.reached_radius_m
+        self.goal, self.phase = goal, Phase.DRIVE
+        self.goals_sent += 1
+        return Send(goal)
+
+    def _is_blocked(self, xy: tuple[float, float]) -> bool:
+        return any(math.dist(xy, b) <= self.config.reached_radius_m for b in self.blocked)
+
+    def state(self, now: float) -> dict[str, object]:
+        """Counters for scoring, published as JSON."""
+        listening = now - self.listen_start if self.phase is Phase.LISTEN else 0.0
+        return {
+            "phase": self.phase.value,
+            "goal": None if self.goal is None else [round(self.goal[0], 2), round(self.goal[1], 2)],
+            "stops": self.stops,
+            "listened_s": round(self.listened_s + listening, 3),
+            "goals_sent": self.goals_sent,
+            "goals_failed": self.failed,
+        }
