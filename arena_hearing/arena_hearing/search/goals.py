@@ -68,7 +68,7 @@ class NearestGoal:
 
 @attrs.frozen(kw_only=True)
 class BeliefGoal:
-    """A located person, else the opening a call snapped to, else the frontier with the most belief mass nearby per distance."""
+    """A free cell ``standoff_m`` short of a located person, else the opening a call snapped to, else the frontier with the most belief mass nearby per distance."""
 
     radius_m: float
     min_mass: float
@@ -76,12 +76,13 @@ class BeliefGoal:
     distance_scale_m: float
     snap: bool
     snap_max_error_rad: float
+    standoff_m: float
 
     def choose(self, view: GoalView) -> tuple[float, float] | None:
         if view.belief is not None:
             peak, value = view.belief.peak()
             if value >= self.locate_threshold:
-                return _clamp(view, peak)
+                return _approach(view, peak, self.standoff_m)
         if self.snap and view.heard is not None:
             candidates = [o.xy for o in view.openings] + [f.goal_xy for f in view.frontiers]
             index = snap_bearing(view.heard.robot_xy, view.heard.bearing_rad, candidates, self.snap_max_error_rad)
@@ -96,14 +97,17 @@ class BeliefGoal:
         return NearestGoal().choose(view)
 
 
-def _clamp(view: GoalView, xy: tuple[float, float]) -> tuple[float, float] | None:
-    """``xy`` when it is mapped free space, else the nearest frontier, since Nav2 rejects goals off the map."""
+def _approach(view: GoalView, person: tuple[float, float], standoff_m: float) -> tuple[float, float] | None:
+    """The free cell nearest the robot among the innermost ones at least ``standoff_m`` from ``person``, else the frontier nearest them."""
     grid = view.grid
-    col = int(math.floor((xy[0] - grid.origin[0]) / grid.resolution))
-    row = int(math.floor((xy[1] - grid.origin[1]) / grid.resolution))
-    h, w = grid.data.shape
-    if 0 <= row < h and 0 <= col < w and grid.free[row, col]:
-        return xy
+    rows, cols = np.nonzero(grid.free)
+    cells = grid.cells_to_world(rows, cols)
+    to_person = np.linalg.norm(cells - np.asarray(person), axis=1)
+    outside = to_person >= standoff_m
+    if outside.any() and to_person[outside].min() <= 2.0 * standoff_m:
+        ring = cells[outside & (to_person <= to_person[outside].min() + grid.resolution)]
+        nearest = ring[int(np.argmin(np.linalg.norm(ring - np.asarray(view.robot_xy), axis=1)))]
+        return float(nearest[0]), float(nearest[1])
     if not view.frontiers:
         return None
-    return min((f.goal_xy for f in view.frontiers), key=lambda goal: math.dist(goal, xy))
+    return min((f.goal_xy for f in view.frontiers), key=lambda goal: math.dist(goal, person))

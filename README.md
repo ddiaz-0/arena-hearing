@@ -188,9 +188,10 @@ axis-aligned). Goals reached or failed within `driver.reached_radius_m` are not
 chosen again in the episode. Goal rules:
 
 - `nearest`: the closest frontier, the baseline without audio.
-- `belief`: the belief peak once it reaches `driver.locate_threshold` (moved
-  to the nearest frontier when it lies off the mapped free space, Nav2 rejects
-  goals outside the map), else with `driver.snap` the opening or frontier the
+- `belief`: once the belief peak reaches `driver.locate_threshold`, the free
+  cell nearest the robot `driver.standoff_m` short of it (the person blocks
+  the peak itself; the nearest frontier when no free cell lies within twice
+  that), else with `driver.snap` the opening or frontier the
   latest call points at within `driver.snap_max_error_deg`, else the frontier
   with the most belief mass within `driver.belief_radius_m` per
   `1 + distance / driver.distance_scale_m`, else the nearest.

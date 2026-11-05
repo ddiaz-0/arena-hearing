@@ -35,7 +35,7 @@ def _view(belief: BeliefMap | None = None, heard: Heard | None = None, openings:
 
 
 def _rule(snap: bool = False) -> BeliefGoal:
-    return BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=2.0, distance_scale_m=5.0, snap=snap, snap_max_error_rad=math.radians(20.0))
+    return BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=2.0, distance_scale_m=5.0, snap=snap, snap_max_error_rad=math.radians(20.0), standoff_m=1.0)
 
 
 def test_nearest_rule_takes_the_closest_frontier() -> None:
@@ -50,15 +50,29 @@ def test_belief_rule_without_belief_mass_takes_the_nearest_frontier() -> None:
     assert _rule().choose(_view(belief=_belief())) == NEAR
 
 
-def test_belief_rule_goes_to_a_located_person_in_mapped_space() -> None:
-    rule = BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=0.9, distance_scale_m=5.0, snap=False, snap_max_error_rad=0.0)
-    x, y = rule.choose(_view(belief=_belief((3.05, 1.05))))
-    assert math.dist((x, y), (3.05, 1.05)) < 0.1
+def _locate_rule(standoff_m: float = 1.0) -> BeliefGoal:
+    return BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=0.9, distance_scale_m=5.0, snap=False, snap_max_error_rad=0.0, standoff_m=standoff_m)
 
 
-def test_belief_rule_clamps_a_person_in_unknown_space_to_the_nearest_frontier() -> None:
-    rule = BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=0.9, distance_scale_m=5.0, snap=False, snap_max_error_rad=0.0)
-    assert rule.choose(_view(belief=_belief((6.05, 5.05)))) == FAR
+def test_belief_rule_stops_short_of_a_located_person_on_the_robot_side() -> None:
+    person = (3.05, 1.05)
+    goal = _locate_rule().choose(_view(belief=_belief(person)))
+    assert goal is not None
+    assert 1.0 <= math.dist(goal, person) <= 1.15
+    assert math.dist(goal, ROBOT) < math.dist(person, ROBOT) - 0.5
+
+
+def test_a_located_person_the_map_marks_occupied_gets_a_goal_beside_them() -> None:
+    grid = _grid()
+    grid.data[8:13, 28:33] = 100
+    view = GoalView(robot_xy=ROBOT, grid=grid, frontiers=[_frontier(NEAR), _frontier(FAR)], openings=[], belief=_belief((3.05, 1.05)), heard=None)
+    goal = _locate_rule().choose(view)
+    assert goal is not None
+    assert 1.0 <= math.dist(goal, (3.05, 1.05)) <= 1.15
+
+
+def test_belief_rule_clamps_a_person_far_in_unknown_space_to_the_nearest_frontier() -> None:
+    assert _locate_rule(standoff_m=0.8).choose(_view(belief=_belief((6.05, 5.85)))) == FAR
 
 
 def test_snap_sends_the_belief_rule_through_the_opening_the_call_came_through() -> None:

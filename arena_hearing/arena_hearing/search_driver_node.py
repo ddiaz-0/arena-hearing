@@ -93,6 +93,7 @@ class SearchDriverNode(ArenaMixinNode):
             distance_scale_m=d.DISTANCE_SCALE_M.value,
             snap=d.SNAP.value,
             snap_max_error_rad=math.radians(d.SNAP_MAX_ERROR_DEG.value),
+            standoff_m=d.STANDOFF_M.value,
         )
 
     def _stop_rule(self) -> StopRule:
