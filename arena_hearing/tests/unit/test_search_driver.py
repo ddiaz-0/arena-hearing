@@ -80,6 +80,15 @@ def test_the_driver_is_done_when_no_frontier_is_left() -> None:
     assert driver.phase is Phase.DONE
 
 
+def test_the_driver_resumes_once_a_frontier_appears() -> None:
+    driver = _driver()
+    empty = MapGrid(data=np.zeros((0, 0), dtype=np.int16), origin=(0.0, 0.0), resolution=RESOLUTION, occupied_threshold=50)
+    assert driver.step(_tick(0.0, NavStatus.IDLE, grid=empty)) is None
+    assert driver.phase is Phase.DONE
+    assert isinstance(driver.step(_tick(0.5, NavStatus.IDLE)), Send)
+    assert driver.phase is Phase.DRIVE
+
+
 def test_the_state_counts_stops_and_listening_time() -> None:
     driver = _driver(stop=EveryGoalStop())
     driver.step(_tick(0.0, NavStatus.IDLE))

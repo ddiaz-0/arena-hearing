@@ -37,6 +37,17 @@ def test_a_gap_wider_than_a_door_is_no_opening() -> None:
     assert find_openings(_grid(_two_rooms(slice(5, 35))), min_width_m=0.6, max_width_m=1.6, depth_m=0.6) == []
 
 
+def test_an_empty_map_has_no_frontier_and_no_opening() -> None:
+    grid = _grid(np.zeros((0, 0), dtype=np.int16))
+    assert find_frontiers(grid, min_cells=5) == []
+    assert find_openings(grid, min_width_m=0.6, max_width_m=1.6, depth_m=0.6) == []
+
+
+def test_a_map_without_free_cells_has_no_opening() -> None:
+    grid = _grid(np.full((20, 20), UNKNOWN, dtype=np.int16))
+    assert find_openings(grid, min_width_m=0.6, max_width_m=1.6, depth_m=0.6) == []
+
+
 def test_a_narrow_corridor_is_no_opening() -> None:
     data = _walled(12, 80)
     assert find_openings(_grid(data), min_width_m=0.6, max_width_m=1.6, depth_m=0.6) == []

@@ -64,6 +64,8 @@ class Opening:
 
 def _runs(free: np.ndarray, occupied: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Per cell, the length of its free run along axis 0 and whether occupied cells bound both ends."""
+    if free.size == 0:
+        return np.zeros(free.shape, dtype=int), np.zeros(free.shape, dtype=bool)
     labels, n = _label(free, np.array([[0, 1, 0], [0, 1, 0], [0, 1, 0]], dtype=bool))
     index = np.arange(1, n + 1)
     lengths = np.bincount(labels.ravel(), minlength=n + 1)

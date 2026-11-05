@@ -17,7 +17,7 @@ class Phase(enum.StrEnum):
     SELECT = "select"
     DRIVE = "drive"
     LISTEN = "listen"
-    DONE = "done"
+    DONE = "done"  # no frontier on the latest map, re-checked every tick
 
 
 class NavStatus(enum.StrEnum):
@@ -83,7 +83,7 @@ class SearchDriver:
         self.stop_rule.reset()
 
     def step(self, tick: Tick) -> Send | Cancel | None:
-        if tick.grid is None or self.phase is Phase.DONE:
+        if tick.grid is None:
             return None
         if self.phase is Phase.LISTEN:
             if tick.now - self.listen_start < self.config.listen_s:

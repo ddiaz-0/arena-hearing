@@ -199,7 +199,8 @@ Stop rules decide when the driver cancels its goal and halts for
 `driver.listen_s`: `never`, `every_goal` (each new goal), `on_call` (a call
 among `driver.kinds` was heard since the last stop) and `fixed_bend` (once,
 `driver.bend_stop_before_m` along the plan before each blind bend of
-`corners.find_blind_bend`). The driver is done when no frontier is left.
+`corners.find_blind_bend`). The driver reports `done` while no frontier is
+left and resumes once the map shows a new one.
 
 ## Evaluation
 
