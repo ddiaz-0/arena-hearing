@@ -38,7 +38,7 @@ from arena_hearing.belief_node import yaw_from_quat
 from arena_hearing.constants import BELIEF_GRID, MAP, NAVIGATE_TO_POSE, SEARCH_STATE, SPEED_LIMIT, STATE_RESETTING, detections, plan
 from arena_hearing.fleet import FleetRobots
 from arena_hearing.params import Configuration, GoalRuleName, StopRuleName
-from arena_hearing.search.driver import Cancel, DriverConfig, NavStatus, Phase, SearchDriver, Send, Tick
+from arena_hearing.search.driver import Cancel, DriverConfig, NavStatus, SearchDriver, Send, Tick
 from arena_hearing.search.frontiers import MapGrid
 from arena_hearing.search.goals import BeliefGoal, BeliefMap, GoalRule, Heard, NearestGoal
 from arena_hearing.search.stops import EveryGoalStop, FixedBendStop, NeverStop, OnCallStop, StopRule
@@ -62,6 +62,7 @@ class _Robot:
     status: NavStatus = NavStatus.IDLE
     goal_handle: ClientGoalHandle | None = None
     generation: int = 0
+    sent_generation: int = 0
 
 
 class SearchDriverNode(ArenaMixinNode):
@@ -226,6 +227,7 @@ class SearchDriverNode(ArenaMixinNode):
         goal.pose.pose.position.x, goal.pose.pose.position.y = float(xy[0]), float(xy[1])
         goal.pose.pose.orientation.z, goal.pose.pose.orientation.w = math.sin(yaw / 2.0), math.cos(yaw / 2.0)
         robot.generation += 1
+        robot.sent_generation = robot.generation
         robot.status = NavStatus.ACTIVE
         robot.client.send_goal_async(goal).add_done_callback(functools.partial(self._on_goal_response, robot, robot.generation))
 
@@ -241,7 +243,7 @@ class SearchDriverNode(ArenaMixinNode):
         if not isinstance(handle, ClientGoalHandle):
             return
         if generation != robot.generation:
-            if handle.accepted and robot.driver.phase is Phase.LISTEN:
+            if handle.accepted and generation == robot.sent_generation:
                 handle.cancel_goal_async()
             return
         if not handle.accepted:

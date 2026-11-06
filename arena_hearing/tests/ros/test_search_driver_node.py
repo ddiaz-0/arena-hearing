@@ -216,3 +216,58 @@ def test_a_map_from_before_the_reset_ended_is_ignored(driver) -> None:
     node._cb_reset(Bool(data=False))
     node._cb_map(robot, _half_explored())
     assert robot.grid is not None
+
+
+def _pending_server(robot):
+    import rclpy
+    from nav2_msgs.action import NavigateToPose
+    from rclpy.action import ActionServer, CancelResponse
+
+    accepted: list[object] = []
+    cancelled: list[object] = []
+
+    def cancel(handle):
+        cancelled.append(handle.goal_id)
+        return CancelResponse.ACCEPT
+
+    server_node = rclpy.create_node(f"nav2_probe_{uuid.uuid4().hex[:8]}")
+    server = ActionServer(server_node, NavigateToPose, robot.action, lambda handle: NavigateToPose.Result(), handle_accepted_callback=accepted.append, cancel_callback=cancel)
+    return server_node, server, accepted, cancelled
+
+
+def test_a_goal_accepted_after_a_reset_is_cancelled(driver) -> None:
+    import rclpy
+    from std_msgs.msg import Bool
+
+    node = driver()
+    robot = _bind(node)
+    server_node, server, accepted, cancelled = _pending_server(robot)
+    try:
+        _spin_until(rclpy, [node, server_node], robot.client.server_is_ready)
+        node._send(robot, (2.0, 2.0), 0.0)
+        node._cb_reset(Bool(data=True))
+        _spin_until(rclpy, [node, server_node], lambda: bool(cancelled))
+    finally:
+        server.destroy()
+        server_node.destroy_node()
+    assert len(accepted) == 1
+    assert robot.goal_handle is None
+
+
+def test_a_goal_replaced_by_a_newer_one_is_left_to_nav2(driver) -> None:
+    import rclpy
+
+    node = driver()
+    robot = _bind(node)
+    server_node, server, accepted, cancelled = _pending_server(robot)
+    try:
+        _spin_until(rclpy, [node, server_node], robot.client.server_is_ready)
+        node._send(robot, (2.0, 2.0), 0.0)
+        node._send(robot, (2.5, 2.0), 0.0)
+        _spin_until(rclpy, [node, server_node], lambda: len(accepted) == 2 and robot.goal_handle is not None)
+        settle = iter(range(25))
+        _spin_until(rclpy, [node, server_node], lambda: next(settle, None) is None)
+    finally:
+        server.destroy()
+        server_node.destroy_node()
+    assert cancelled == []
