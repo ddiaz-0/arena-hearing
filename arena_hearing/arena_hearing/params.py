@@ -130,6 +130,8 @@ class DriverGroup(ParamGroup):
     STOP_RULE = Param[StopRuleName]("driver.stop_rule", StopRuleName.NEVER, parse=StopRuleName, description="Search stop rule: never, every_goal, on_call or fixed_bend.")
     LISTEN_S = Param[float]("driver.listen_s", 3.0, parse=non_negative, description="Seconds the search driver halts to listen per stop.")
     SNAP = Param[bool]("driver.snap", False, description="Snap a heard call onto the SLAM-map opening or frontier it points at (belief rule).")
+    REPLAN_ON_CALL = Param[bool]("driver.replan_on_call", True, description="Ask the goal rule again on every new call while driving and switch to the goal it picks.")
+    STUCK_S = Param[float]("driver.stuck_s", 15.0, parse=non_negative, description="Seconds without leaving reached_radius_m after which a goal counts as failed, 0 = never.")
     RATE_HZ = Param[float]("driver.rate_hz", 2.0, parse=positive)
     KINDS = Param[tuple[str, ...]]("driver.kinds", ("speech",), parse=names)
     HEARD_MAX_AGE_S = Param[float]("driver.heard_max_age_s", 10.0, parse=non_negative)

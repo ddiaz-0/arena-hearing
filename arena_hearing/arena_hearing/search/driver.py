@@ -1,4 +1,4 @@
-"""Search state machine: select a goal, drive to it, halt to listen when the stop rule fires."""
+"""Search state machine: select a goal, drive to it, halt to listen when the stop rule fires, reselect on a new call or when stuck."""
 
 from __future__ import annotations
 
@@ -57,6 +57,8 @@ class DriverConfig:
     opening_min_width_m: float
     opening_max_width_m: float
     opening_depth_m: float
+    replan_on_call: bool
+    stuck_s: float  # 0 = never give a goal up for lack of progress
 
 
 @attrs.define
@@ -69,6 +71,9 @@ class SearchDriver:
     fresh_goal: bool = False
     blocked: list[tuple[float, float]] = attrs.Factory(list)
     calls_mark: int = 0
+    replan_mark: int = 0
+    progress_xy: tuple[float, float] = (math.nan, math.nan)
+    progress_t: float = 0.0
     listen_start: float = 0.0
     stops: int = 0
     listened_s: float = 0.0
@@ -78,7 +83,8 @@ class SearchDriver:
     def reset(self) -> None:
         self.phase, self.goal, self.fresh_goal = Phase.SELECT, None, False
         self.blocked.clear()
-        self.calls_mark = self.stops = self.goals_sent = self.failed = 0
+        self.calls_mark = self.replan_mark = self.stops = self.goals_sent = self.failed = 0
+        self.progress_xy, self.progress_t = (math.nan, math.nan), 0.0
         self.listened_s = 0.0
         self.stop_rule.reset()
 
@@ -93,8 +99,9 @@ class SearchDriver:
             self.phase = Phase.SELECT
         if self.phase is Phase.DRIVE and self.goal is not None:
             reached = tick.status is NavStatus.SUCCEEDED or math.dist(tick.robot_xy, self.goal) <= self.config.reached_radius_m
-            if reached or tick.status is NavStatus.FAILED:
-                self.failed += tick.status is NavStatus.FAILED
+            failed = tick.status is NavStatus.FAILED or self._stuck(tick)
+            if reached or failed:
+                self.failed += failed and not reached
                 self.blocked.append(self.goal)
                 self.phase = Phase.SELECT
             else:
@@ -104,22 +111,42 @@ class SearchDriver:
                     self.phase, self.listen_start = Phase.LISTEN, tick.now
                     self.stops += 1
                     return Cancel()
+                if self.config.replan_on_call and tick.heard is not None and tick.calls > self.replan_mark:
+                    self.replan_mark = tick.calls
+                    goal = self._choose(tick, tick.grid)
+                    if goal is not None and math.dist(goal, self.goal) > self.config.reached_radius_m:
+                        return self._send(tick, goal)
                 if tick.status is NavStatus.IDLE:
                     return Send(self.goal)
                 return None
         return self._select(tick, tick.grid)
 
-    def _select(self, tick: Tick, grid: MapGrid) -> Send | None:
+    def _stuck(self, tick: Tick) -> bool:
+        """True once the robot has stayed within reached_radius_m of one spot for stuck_s while driving."""
+        if not math.dist(tick.robot_xy, self.progress_xy) <= self.config.reached_radius_m:
+            self.progress_xy, self.progress_t = tick.robot_xy, tick.now
+            return False
+        return self.config.stuck_s > 0.0 and tick.now - self.progress_t >= self.config.stuck_s
+
+    def _choose(self, tick: Tick, grid: MapGrid) -> tuple[float, float] | None:
         frontiers = [f for f in find_frontiers(grid, self.config.min_frontier_cells) if not self._is_blocked(f.goal_xy)]
         c = self.config
         openings = [o for o in find_openings(grid, c.opening_min_width_m, c.opening_max_width_m, c.opening_depth_m) if not self._is_blocked(o.xy)]
-        goal = self.goal_rule.choose(GoalView(robot_xy=tick.robot_xy, grid=grid, frontiers=frontiers, openings=openings, belief=tick.belief, heard=tick.heard))
+        return self.goal_rule.choose(GoalView(robot_xy=tick.robot_xy, grid=grid, frontiers=frontiers, openings=openings, belief=tick.belief, heard=tick.heard))
+
+    def _select(self, tick: Tick, grid: MapGrid) -> Send | None:
+        goal = self._choose(tick, grid)
         if goal is None:
             self.phase = Phase.DONE
             return None
-        self.fresh_goal = self.goal is None or math.dist(goal, self.goal) > c.reached_radius_m
+        return self._send(tick, goal)
+
+    def _send(self, tick: Tick, goal: tuple[float, float]) -> Send:
+        self.fresh_goal = self.goal is None or math.dist(goal, self.goal) > self.config.reached_radius_m
         self.goal, self.phase = goal, Phase.DRIVE
         self.goals_sent += 1
+        self.replan_mark = tick.calls
+        self.progress_xy, self.progress_t = tick.robot_xy, tick.now
         return Send(goal)
 
     def _is_blocked(self, xy: tuple[float, float]) -> bool:

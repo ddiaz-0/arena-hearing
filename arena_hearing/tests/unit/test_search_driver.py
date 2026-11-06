@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import math
+
 import numpy as np
 
 from arena_hearing.search.driver import Cancel, DriverConfig, NavStatus, Phase, SearchDriver, Send, Tick
 from arena_hearing.search.frontiers import FREE, UNKNOWN, MapGrid
-from arena_hearing.search.goals import GoalRule, NearestGoal
+from arena_hearing.search.goals import BeliefGoal, GoalRule, Heard, NearestGoal
 from arena_hearing.search.stops import EveryGoalStop, NeverStop, StopRule
 
 RESOLUTION = 0.1
 ROBOT = (2.0, 2.0)
 LISTEN_S = 3.0
+STUCK_S = 15.0
 
 
 def _grid(left_unknown: bool = True, right_unknown: bool = True) -> MapGrid:
@@ -21,13 +24,20 @@ def _grid(left_unknown: bool = True, right_unknown: bool = True) -> MapGrid:
     return MapGrid(data=data, origin=(0.0, 0.0), resolution=RESOLUTION, occupied_threshold=50)
 
 
-def _driver(stop: StopRule | None = None, goal: GoalRule | None = None) -> SearchDriver:
-    config = DriverConfig(listen_s=LISTEN_S, min_frontier_cells=5, reached_radius_m=0.5, opening_min_width_m=0.6, opening_max_width_m=1.6, opening_depth_m=0.6)
+def _driver(stop: StopRule | None = None, goal: GoalRule | None = None, replan_on_call: bool = True, stuck_s: float = STUCK_S) -> SearchDriver:
+    config = DriverConfig(listen_s=LISTEN_S, min_frontier_cells=5, reached_radius_m=0.5, opening_min_width_m=0.6, opening_max_width_m=1.6, opening_depth_m=0.6, replan_on_call=replan_on_call, stuck_s=stuck_s)
     return SearchDriver(goal or NearestGoal(), stop or NeverStop(), config)
 
 
-def _tick(now: float, status: NavStatus = NavStatus.ACTIVE, grid: MapGrid | None = None, robot_xy: tuple[float, float] = ROBOT) -> Tick:
-    return Tick(now=now, robot_xy=robot_xy, grid=grid or _grid(), belief=None, heard=None, calls=0, plan_xy=None, status=status)
+def _snap() -> BeliefGoal:
+    return BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=2.0, distance_scale_m=5.0, snap=True, snap_max_error_rad=math.radians(20.0), standoff_m=1.0)
+
+
+def _tick(now: float, status: NavStatus = NavStatus.ACTIVE, grid: MapGrid | None = None, robot_xy: tuple[float, float] = ROBOT, calls: int = 0, heard: Heard | None = None) -> Tick:
+    return Tick(now=now, robot_xy=robot_xy, grid=grid or _grid(), belief=None, heard=heard, calls=calls, plan_xy=None, status=status)
+
+
+EAST = Heard(robot_xy=ROBOT, bearing_rad=0.0)
 
 
 def test_the_driver_sends_the_goal_its_rule_chooses() -> None:
@@ -108,3 +118,54 @@ def test_a_reset_forgets_failed_goals_and_stops() -> None:
     action = driver.step(_tick(0.2, NavStatus.IDLE))
     assert isinstance(action, Send)
     assert action.xy[0] < 1.0
+
+
+def test_a_new_call_while_driving_sends_the_goal_it_points_at() -> None:
+    driver = _driver(goal=_snap())
+    first = driver.step(_tick(0.0, NavStatus.IDLE))
+    assert isinstance(first, Send)
+    assert first.xy[0] < 1.0
+    turn = driver.step(_tick(0.5, calls=1, heard=EAST))
+    assert isinstance(turn, Send)
+    assert turn.xy[0] > 5.0
+    assert driver.state(0.5)["goals_sent"] == 2
+
+
+def test_a_call_that_points_at_the_current_goal_sends_nothing() -> None:
+    driver = _driver(goal=_snap())
+    first = driver.step(_tick(0.0, NavStatus.IDLE, calls=1, heard=EAST))
+    assert isinstance(first, Send)
+    assert first.xy[0] > 5.0
+    assert driver.step(_tick(0.5, calls=2, heard=EAST)) is None
+
+
+def test_without_replan_on_call_the_driver_keeps_its_goal() -> None:
+    driver = _driver(goal=_snap(), replan_on_call=False)
+    first = driver.step(_tick(0.0, NavStatus.IDLE))
+    assert isinstance(first, Send)
+    assert driver.step(_tick(0.5, calls=1, heard=EAST)) is None
+
+
+def test_a_robot_that_does_not_move_for_stuck_s_gives_its_goal_up() -> None:
+    driver = _driver()
+    first = driver.step(_tick(0.0, NavStatus.IDLE))
+    assert isinstance(first, Send)
+    assert driver.step(_tick(STUCK_S - 0.1)) is None
+    other = driver.step(_tick(STUCK_S))
+    assert isinstance(other, Send)
+    assert other.xy[0] > 5.0
+    assert driver.state(STUCK_S)["goals_failed"] == 1
+
+
+def test_a_robot_that_moves_is_not_stuck() -> None:
+    driver = _driver()
+    driver.step(_tick(0.0, NavStatus.IDLE))
+    assert driver.step(_tick(STUCK_S - 1.0, robot_xy=(1.4, 2.0))) is None
+    assert driver.step(_tick(STUCK_S + 1.0, robot_xy=(1.4, 2.0))) is None
+    assert driver.state(STUCK_S + 1.0)["goals_failed"] == 0
+
+
+def test_stuck_s_zero_never_gives_a_goal_up() -> None:
+    driver = _driver(stuck_s=0.0)
+    driver.step(_tick(0.0, NavStatus.IDLE))
+    assert driver.step(_tick(10.0 * STUCK_S)) is None

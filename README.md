@@ -99,6 +99,8 @@ arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
 | `robot.hearing.driver.stop_rule` | empty (`never`) | `never`, `every_goal`, `on_call` or `fixed_bend` |
 | `robot.hearing.driver.listen_s` | empty (`3.0`) | Seconds halted to listen per stop |
 | `robot.hearing.driver.snap` | empty (`false`) | Snap a heard call onto a SLAM-map opening or frontier |
+| `robot.hearing.driver.replan_on_call` | empty (`true`) | Ask the goal rule again on every new call while driving |
+| `robot.hearing.driver.stuck_s` | empty (`15.0`) | Seconds without progress before a goal counts as failed, `0` = never |
 
 The `robot.hearing.*` arguments are declared from the parameters in
 [`params.py`](arena_hearing/arena_hearing/params.py) that carry a description.
@@ -202,8 +204,12 @@ Stop rules decide when the driver cancels its goal and halts for
 `driver.listen_s`: `never`, `every_goal` (each new goal), `on_call` (a call
 among `driver.kinds` was heard since the last stop) and `fixed_bend` (once,
 `driver.bend_stop_before_m` along the plan before each blind bend of
-`corners.find_blind_bend`). The driver reports `done` while no frontier is
-left and resumes once the map shows a new one.
+`corners.find_blind_bend`). Between stops, with `driver.replan_on_call`, every
+new call asks the goal rule again and a different goal replaces the one
+driven to. A goal the robot makes no progress on (it stays within
+`driver.reached_radius_m` of one spot for `driver.stuck_s`) counts as failed.
+The driver reports `done` while no frontier is left and resumes once the map
+shows a new one.
 
 ## Evaluation
 
