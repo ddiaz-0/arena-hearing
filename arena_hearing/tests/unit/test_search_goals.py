@@ -84,3 +84,21 @@ def test_snap_sends_the_belief_rule_through_the_opening_the_call_came_through() 
 def test_without_snap_the_heard_bearing_is_ignored() -> None:
     heard = Heard(robot_xy=ROBOT, bearing_rad=math.radians(95.0))
     assert _rule().choose(_view(belief=_belief((6.5, 4.5)), heard=heard, openings=[Opening(xy=(2.0, 3.5))])) == FAR
+
+
+def test_a_reached_standoff_is_not_chosen_again() -> None:
+    person = (3.05, 1.05)
+    first = _locate_rule().choose(_view(belief=_belief(person)))
+    assert first is not None
+    view = GoalView(robot_xy=first, grid=_grid(), frontiers=[_frontier(NEAR), _frontier(FAR)], openings=[], belief=_belief(person), heard=None, blocked=(first,), blocked_radius_m=0.5)
+    second = _locate_rule().choose(view)
+    assert second is not None
+    assert math.dist(second, first) > 0.5
+    assert 1.0 <= math.dist(second, person) <= 1.15
+
+
+def test_a_located_person_with_every_standoff_reached_falls_back_to_the_nearest_frontier() -> None:
+    person = (3.05, 1.05)
+    ring = [(person[0] + 1.05 * math.cos(a), person[1] + 1.05 * math.sin(a)) for a in np.linspace(0.0, 2.0 * math.pi, 24, endpoint=False)]
+    view = GoalView(robot_xy=ROBOT, grid=_grid(), frontiers=[_frontier(NEAR), _frontier(FAR)], openings=[], belief=_belief(person), heard=None, blocked=tuple(ring), blocked_radius_m=0.5)
+    assert _locate_rule().choose(view) == NEAR

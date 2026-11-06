@@ -132,7 +132,7 @@ class SearchDriver:
         frontiers = [f for f in find_frontiers(grid, self.config.min_frontier_cells) if not self._is_blocked(f.goal_xy)]
         c = self.config
         openings = [o for o in find_openings(grid, c.opening_min_width_m, c.opening_max_width_m, c.opening_depth_m) if not self._is_blocked(o.xy)]
-        return self.goal_rule.choose(GoalView(robot_xy=tick.robot_xy, grid=grid, frontiers=frontiers, openings=openings, belief=tick.belief, heard=tick.heard))
+        return self.goal_rule.choose(GoalView(robot_xy=tick.robot_xy, grid=grid, frontiers=frontiers, openings=openings, belief=tick.belief, heard=tick.heard, blocked=tuple(self.blocked), blocked_radius_m=c.reached_radius_m))
 
     def _select(self, tick: Tick, grid: MapGrid) -> Send | None:
         goal = self._choose(tick, grid)

@@ -49,6 +49,8 @@ class GoalView:
     openings: list[Opening]
     belief: BeliefMap | None
     heard: Heard | None
+    blocked: tuple[tuple[float, float], ...] = ()
+    blocked_radius_m: float = 0.0
 
 
 class GoalRule(Protocol):
@@ -98,7 +100,7 @@ class BeliefGoal:
 
 
 def _approach(view: GoalView, person: tuple[float, float], standoff_m: float) -> tuple[float, float] | None:
-    """The free cell nearest the robot among the innermost ones at least ``standoff_m`` from ``person``, else the frontier nearest them."""
+    """The unblocked free cell nearest the robot among the innermost ones at least ``standoff_m`` from ``person``, else the frontier nearest them."""
     grid = view.grid
     rows, cols = np.nonzero(grid.free)
     cells = grid.cells_to_world(rows, cols)
@@ -106,8 +108,12 @@ def _approach(view: GoalView, person: tuple[float, float], standoff_m: float) ->
     outside = to_person >= standoff_m
     if outside.any() and to_person[outside].min() <= 2.0 * standoff_m:
         ring = cells[outside & (to_person <= to_person[outside].min() + grid.resolution)]
-        nearest = ring[int(np.argmin(np.linalg.norm(ring - np.asarray(view.robot_xy), axis=1)))]
-        return float(nearest[0]), float(nearest[1])
+        if view.blocked:
+            to_blocked = np.linalg.norm(ring[:, None, :] - np.asarray(view.blocked)[None, :, :], axis=2)
+            ring = ring[to_blocked.min(axis=1) > view.blocked_radius_m]
+        if len(ring):
+            nearest = ring[int(np.argmin(np.linalg.norm(ring - np.asarray(view.robot_xy), axis=1)))]
+            return float(nearest[0]), float(nearest[1])
     if not view.frontiers:
         return None
     return min((f.goal_xy for f in view.frontiers), key=lambda goal: math.dist(goal, person))

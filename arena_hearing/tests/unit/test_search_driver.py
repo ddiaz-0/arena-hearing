@@ -6,7 +6,7 @@ import numpy as np
 
 from arena_hearing.search.driver import Cancel, DriverConfig, NavStatus, Phase, SearchDriver, Send, Tick
 from arena_hearing.search.frontiers import FREE, UNKNOWN, MapGrid
-from arena_hearing.search.goals import BeliefGoal, GoalRule, Heard, NearestGoal
+from arena_hearing.search.goals import BeliefGoal, BeliefMap, GoalRule, Heard, NearestGoal
 from arena_hearing.search.stops import EveryGoalStop, NeverStop, StopRule
 
 RESOLUTION = 0.1
@@ -33,8 +33,8 @@ def _snap() -> BeliefGoal:
     return BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=2.0, distance_scale_m=5.0, snap=True, snap_max_error_rad=math.radians(20.0), standoff_m=1.0)
 
 
-def _tick(now: float, status: NavStatus = NavStatus.ACTIVE, grid: MapGrid | None = None, robot_xy: tuple[float, float] = ROBOT, calls: int = 0, heard: Heard | None = None) -> Tick:
-    return Tick(now=now, robot_xy=robot_xy, grid=grid or _grid(), belief=None, heard=heard, calls=calls, plan_xy=None, status=status)
+def _tick(now: float, status: NavStatus = NavStatus.ACTIVE, grid: MapGrid | None = None, robot_xy: tuple[float, float] = ROBOT, calls: int = 0, heard: Heard | None = None, belief: BeliefMap | None = None) -> Tick:
+    return Tick(now=now, robot_xy=robot_xy, grid=grid or _grid(), belief=belief, heard=heard, calls=calls, plan_xy=None, status=status)
 
 
 EAST = Heard(robot_xy=ROBOT, bearing_rad=0.0)
@@ -169,3 +169,19 @@ def test_stuck_s_zero_never_gives_a_goal_up() -> None:
     driver = _driver(stuck_s=0.0)
     driver.step(_tick(0.0, NavStatus.IDLE))
     assert driver.step(_tick(10.0 * STUCK_S)) is None
+
+
+def _located(xy: tuple[float, float]) -> BeliefMap:
+    data = np.zeros((40, 60), dtype=np.float32)
+    data[int(xy[1] / RESOLUTION), int(xy[0] / RESOLUTION)] = 1.0
+    return BeliefMap(data=data, origin=(0.0, 0.0), resolution=RESOLUTION)
+
+
+def test_a_reached_standoff_of_a_peak_nobody_is_at_is_not_sent_again() -> None:
+    peak = _located((3.05, 2.05))
+    driver = _driver(goal=BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=0.9, distance_scale_m=5.0, snap=False, snap_max_error_rad=0.0, standoff_m=1.0))
+    first = driver.step(_tick(0.0, NavStatus.IDLE, belief=peak))
+    assert isinstance(first, Send)
+    second = driver.step(_tick(1.0, NavStatus.SUCCEEDED, robot_xy=first.xy, belief=peak))
+    assert isinstance(second, Send)
+    assert math.dist(second.xy, first.xy) > 0.5

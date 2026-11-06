@@ -193,9 +193,9 @@ rules:
 
 - `nearest`: the closest frontier, the baseline without audio.
 - `belief`: once the belief peak reaches `driver.locate_threshold`, the free
-  cell nearest the robot `driver.standoff_m` short of it (the person blocks
-  the peak itself; the nearest frontier when no free cell lies within twice
-  that), else with `driver.snap` the opening or frontier the
+  cell nearest the robot `driver.standoff_m` short of it and not reached
+  before (the person blocks the peak itself; the nearest frontier when no
+  such cell lies within twice that), else with `driver.snap` the opening or frontier the
   latest call points at within `driver.snap_max_error_deg`, else the frontier
   with the most belief mass within `driver.belief_radius_m` per
   `1 + distance / driver.distance_scale_m`, else the nearest.
