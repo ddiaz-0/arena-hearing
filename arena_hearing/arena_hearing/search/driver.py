@@ -47,6 +47,7 @@ class Tick:
     calls: int  # calls heard since the driver started, cumulative
     plan_xy: np.ndarray | None
     status: NavStatus  # of the last goal sent
+    limited: bool = False
 
 
 @attrs.frozen(kw_only=True)
@@ -122,8 +123,8 @@ class SearchDriver:
         return self._select(tick, tick.grid)
 
     def _stuck(self, tick: Tick) -> bool:
-        """True once the robot has stayed within reached_radius_m of one spot for stuck_s while driving."""
-        if not math.dist(tick.robot_xy, self.progress_xy) <= self.config.reached_radius_m:
+        """True once the robot has stayed within reached_radius_m of one spot for stuck_s while driving under no speed limit."""
+        if tick.limited or not math.dist(tick.robot_xy, self.progress_xy) <= self.config.reached_radius_m:
             self.progress_xy, self.progress_t = tick.robot_xy, tick.now
             return False
         return self.config.stuck_s > 0.0 and tick.now - self.progress_t >= self.config.stuck_s

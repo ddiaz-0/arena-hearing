@@ -24,6 +24,7 @@ from arena_robots.fleet import RobotBinding
 from arena_robots_msgs.msg import SoundDetection
 from arena_runtime_msgs.msg import LockstepChannel
 from nav2_msgs.action import NavigateToPose
+from nav2_msgs.msg import SpeedLimit
 from nav_msgs.msg import OccupancyGrid, Path
 from rclpy.action import ActionClient
 from rclpy.action.client import ClientGoalHandle
@@ -34,7 +35,7 @@ from rclpy.time import Time
 from std_msgs.msg import Bool, String
 
 from arena_hearing.belief_node import yaw_from_quat
-from arena_hearing.constants import BELIEF_GRID, MAP, NAVIGATE_TO_POSE, SEARCH_STATE, STATE_RESETTING, detections, plan
+from arena_hearing.constants import BELIEF_GRID, MAP, NAVIGATE_TO_POSE, SEARCH_STATE, SPEED_LIMIT, STATE_RESETTING, detections, plan
 from arena_hearing.fleet import FleetRobots
 from arena_hearing.params import Configuration, GoalRuleName, StopRuleName
 from arena_hearing.search.driver import Cancel, DriverConfig, NavStatus, Phase, SearchDriver, Send, Tick
@@ -57,6 +58,7 @@ class _Robot:
     heard: Heard | None = None
     heard_t: float = -math.inf
     calls: int = 0
+    limited: bool = False
     status: NavStatus = NavStatus.IDLE
     goal_handle: ClientGoalHandle | None = None
     generation: int = 0
@@ -124,6 +126,7 @@ class SearchDriverNode(ArenaMixinNode):
             self.create_subscription(OccupancyGrid, f"{scope}/{BELIEF_GRID}", functools.partial(self._cb_belief, robot), qos.reliable(1)),
             self.create_subscription(Path, f"{self._tg}/{plan(binding.name)}", functools.partial(self._cb_plan, robot), qos.reliable(1)),
             self.create_subscription(SoundDetection, f"{self._tg}/{detections(binding.name, self._frontend)}", functools.partial(self._cb_detection, robot), qos.reliable(50)),
+            self.create_subscription(SpeedLimit, f"{scope}/{SPEED_LIMIT}", functools.partial(self._cb_speed_limit, robot), qos.reliable(1)),
         ]
         self.get_logger().info(f"hearing_search_driver bound to {binding.name}: goals on {robot.action!r}")
         return robot
@@ -154,6 +157,10 @@ class SearchDriverNode(ArenaMixinNode):
     @staticmethod
     def _cb_plan(robot: _Robot, msg: Path) -> None:
         robot.plan_xy = np.array([[p.pose.position.x, p.pose.position.y] for p in msg.poses], dtype=np.float64) if msg.poses else None
+
+    @staticmethod
+    def _cb_speed_limit(robot: _Robot, msg: SpeedLimit) -> None:
+        robot.limited = 0.0 < msg.speed_limit < (100.0 if msg.percentage else math.inf)
 
     def _cb_detection(self, robot: _Robot, msg: SoundDetection) -> None:
         azimuth = float(msg.azimuth_rad)
@@ -205,7 +212,7 @@ class SearchDriverNode(ArenaMixinNode):
         now = self._now()
         if pose is not None and robot.client.server_is_ready():
             fresh = now - robot.heard_t <= self.conf.Driver.HEARD_MAX_AGE_S.value
-            tick = Tick(now=now, robot_xy=(pose[0], pose[1]), grid=robot.grid, belief=robot.belief, heard=robot.heard if fresh else None, calls=robot.calls, plan_xy=robot.plan_xy, status=robot.status)
+            tick = Tick(now=now, robot_xy=(pose[0], pose[1]), grid=robot.grid, belief=robot.belief, heard=robot.heard if fresh else None, calls=robot.calls, plan_xy=robot.plan_xy, status=robot.status, limited=robot.limited)
             action = robot.driver.step(tick)
             if isinstance(action, Send):
                 self._send(robot, action.xy, math.atan2(action.xy[1] - pose[1], action.xy[0] - pose[0]))

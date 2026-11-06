@@ -33,8 +33,8 @@ def _snap() -> BeliefGoal:
     return BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=2.0, distance_scale_m=5.0, snap=True, snap_max_error_rad=math.radians(20.0), standoff_m=1.0)
 
 
-def _tick(now: float, status: NavStatus = NavStatus.ACTIVE, grid: MapGrid | None = None, robot_xy: tuple[float, float] = ROBOT, calls: int = 0, heard: Heard | None = None, belief: BeliefMap | None = None) -> Tick:
-    return Tick(now=now, robot_xy=robot_xy, grid=grid or _grid(), belief=belief, heard=heard, calls=calls, plan_xy=None, status=status)
+def _tick(now: float, status: NavStatus = NavStatus.ACTIVE, grid: MapGrid | None = None, robot_xy: tuple[float, float] = ROBOT, calls: int = 0, heard: Heard | None = None, belief: BeliefMap | None = None, limited: bool = False) -> Tick:
+    return Tick(now=now, robot_xy=robot_xy, grid=grid or _grid(), belief=belief, heard=heard, calls=calls, plan_xy=None, status=status, limited=limited)
 
 
 EAST = Heard(robot_xy=ROBOT, bearing_rad=0.0)
@@ -185,3 +185,23 @@ def test_a_reached_standoff_of_a_peak_nobody_is_at_is_not_sent_again() -> None:
     second = driver.step(_tick(1.0, NavStatus.SUCCEEDED, robot_xy=first.xy, belief=peak))
     assert isinstance(second, Send)
     assert math.dist(second.xy, first.xy) > 0.5
+
+
+def _creep(driver: SearchDriver, limited: bool) -> None:
+    for step in range(1, 101):
+        t = 0.5 * step
+        driver.step(_tick(t, robot_xy=(ROBOT[0], ROBOT[1] + 0.03 * t), limited=limited))
+
+
+def test_a_creep_under_a_speed_limit_keeps_its_goal() -> None:
+    driver = _driver()
+    assert isinstance(driver.step(_tick(0.0, NavStatus.IDLE)), Send)
+    _creep(driver, limited=True)
+    assert driver.state(50.0)["goals_failed"] == 0
+
+
+def test_the_same_creep_without_a_speed_limit_gives_its_goal_up() -> None:
+    driver = _driver()
+    assert isinstance(driver.step(_tick(0.0, NavStatus.IDLE)), Send)
+    _creep(driver, limited=False)
+    assert driver.state(50.0)["goals_failed"] >= 1

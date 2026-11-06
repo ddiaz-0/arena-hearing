@@ -13,6 +13,7 @@ SPEED_FILTER_MASK = "hearing/speed_filter_mask"
 POLICY_STATE = "hearing/policy_state"
 POLICY_MARKERS = "hearing/policy_markers"
 COSTMAP_FILTER_INFO = "hearing/costmap_filter_info"
+SPEED_LIMIT = "hearing/speed_limit"
 SEARCH_STATE = "hearing/search_state"
 NAVIGATE_TO_POSE = "navigate_to_pose"
 

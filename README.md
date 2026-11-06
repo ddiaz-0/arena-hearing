@@ -133,7 +133,7 @@ robot namespace:
 | out | `<r>/hearing/policy_markers` | approach lane and hold band, only while subscribed |
 | out | `<r>/hearing/search_state` | JSON: phase, goal, stops, listened time, goals sent and failed, calls, Nav2 status |
 | out | `<r>/navigate_to_pose` | search driver goals |
-| Nav2 | `<r>/hearing/speed_limit` | SpeedFilter to controller |
+| Nav2 | `<r>/hearing/speed_limit` | SpeedFilter to controller, and to the search driver |
 
 ## Belief and policy
 
@@ -207,7 +207,8 @@ among `driver.kinds` was heard since the last stop) and `fixed_bend` (once,
 `corners.find_blind_bend`). Between stops, with `driver.replan_on_call`, every
 new call asks the goal rule again and a different goal replaces the one
 driven to. A goal the robot makes no progress on (it stays within
-`driver.reached_radius_m` of one spot for `driver.stuck_s`) counts as failed.
+`driver.reached_radius_m` of one spot for `driver.stuck_s`, a speed limit on
+`<r>/hearing/speed_limit` holding the clock) counts as failed.
 The driver reports `done` while no frontier is left and resumes once the map
 shows a new one.
 
