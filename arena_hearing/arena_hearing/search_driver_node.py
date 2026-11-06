@@ -73,6 +73,7 @@ class SearchDriverNode(ArenaMixinNode):
         self._tg = self.conf.Hearing.TG_NODE.value
         self._frontend = self.conf.Hearing.FRONTEND.value
         self._rate = d.RATE_HZ.value
+        self._resetting = False
         self.create_subscription(Bool, f"{self._tg}/{STATE_RESETTING}", self._cb_reset, qos.latched())
         self._robots = FleetRobots(self, self._tg, start=self._start, stop=self._stop, channel=self._channel)
         self.create_timer(1.0 / self._rate, self._on_timer)
@@ -138,6 +139,8 @@ class SearchDriverNode(ArenaMixinNode):
         return LockstepChannel(name=f"search/{robot.binding.name}", topic=robot.pub_state.topic_name, type="std_msgs/msg/String", period_s=1.1 / self._rate, hard=False)
 
     def _cb_map(self, robot: _Robot, msg: OccupancyGrid) -> None:
+        if self._resetting:
+            return
         info = msg.info
         data = np.asarray(msg.data, dtype=np.int16).reshape(info.height, info.width)
         robot.grid = MapGrid(data=data, origin=(info.origin.position.x, info.origin.position.y), resolution=float(info.resolution), occupied_threshold=self._map_conf.OCCUPIED_THRESHOLD.value)
@@ -172,11 +175,13 @@ class SearchDriverNode(ArenaMixinNode):
         robot.calls += 1
 
     def _cb_reset(self, msg: Bool) -> None:
+        self._resetting = msg.data
         if not msg.data:
             return
         for robot in self._robots:
             self._cancel(robot)
             robot.driver.reset()
+            robot.grid = None
             robot.heard, robot.heard_t, robot.calls = None, -math.inf, 0
             robot.plan_xy = None
 

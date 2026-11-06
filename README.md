@@ -185,7 +185,9 @@ Each tick it finds the frontiers of the map (free cells next to unknown ones,
 of `driver.opening_min_width_m` to `driver.opening_max_width_m` between
 occupied cells with wider space within `driver.opening_depth_m` on both sides,
 axis-aligned). Goals reached or failed within `driver.reached_radius_m` are not
-chosen again in the episode. Goal rules:
+chosen again in the episode. A reset drops the map and ignores maps until it
+ends, so every episode plans on the map slam_toolbox rebuilds from empty. Goal
+rules:
 
 - `nearest`: the closest frontier, the baseline without audio.
 - `belief`: once the belief peak reaches `driver.locate_threshold`, the free

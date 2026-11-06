@@ -193,3 +193,26 @@ def test_a_reset_forgets_the_calls_of_the_last_episode(driver) -> None:
     node._cb_reset(Bool(data=True))
     assert robot.calls == 0
     assert robot.heard is None
+
+
+def test_a_reset_forgets_the_map_of_the_last_episode(driver) -> None:
+    from std_msgs.msg import Bool
+
+    node = driver()
+    robot = _bind(node)
+    node._cb_map(robot, _half_explored())
+    node._cb_reset(Bool(data=True))
+    assert robot.grid is None
+
+
+def test_a_map_from_before_the_reset_ended_is_ignored(driver) -> None:
+    from std_msgs.msg import Bool
+
+    node = driver()
+    robot = _bind(node)
+    node._cb_reset(Bool(data=True))
+    node._cb_map(robot, _half_explored())
+    assert robot.grid is None
+    node._cb_reset(Bool(data=False))
+    node._cb_map(robot, _half_explored())
+    assert robot.grid is not None
