@@ -61,7 +61,7 @@ class BeliefGroup(ParamGroup):
     RESOLUTION_M = Param[float]("belief.resolution_m", 0.0, parse=non_negative)
     STANDALONE_ENABLED = Param[bool]("belief.standalone.enabled", False)
     STANDALONE_ORIGIN_M = Param[tuple[float, ...]]("belief.standalone.origin_m", (-10.0, -10.0), parse=floats)
-    STANDALONE_SIZE_M = Param[tuple[float, ...]]("belief.standalone.size_m", (20.0, 20.0), parse=floats)
+    STANDALONE_SIZE_M = Param[tuple[float, ...]]("belief.standalone.size_m", (0.0, 0.0), parse=floats, description="Standalone grid size in m, 0 = the extent of the env map, whose cells it never reads.")
     WEDGE_DEG = Param[float]("belief.wedge_deg", 10.0, parse=positive)
     MIN_HALF_WIDTH_M = Param[float]("belief.min_half_width_m", 0.3, parse=non_negative)
     TAU_S = Param[float]("belief.tau_s", 2.0, parse=positive)

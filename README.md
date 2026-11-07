@@ -171,7 +171,8 @@ layers.
 `hearing_search_driver` looks for a calling person on a map the robot builds
 itself. It runs with `robot.mobile.mapping:=slam`, `task.robots:=search` (a
 judge-only goto, so the driver is the only writer of the robot's Nav2 goal) and
-the standalone belief grid:
+the standalone belief grid, which spans the extent of the env map without reading
+its cells unless `belief.standalone.size_m` (with `origin_m`) gives a rectangle:
 
 ```bash
 arena launch sim:=gazebo robot:=jackal world:=hospital_1 \
