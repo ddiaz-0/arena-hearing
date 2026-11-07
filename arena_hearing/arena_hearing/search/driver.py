@@ -8,7 +8,7 @@ import math
 import attrs
 import numpy as np
 
-from arena_hearing.search.frontiers import MapGrid, find_frontiers, find_openings
+from arena_hearing.search.frontiers import MapGrid, away_from, find_frontiers, find_openings
 from arena_hearing.search.goals import BeliefMap, GoalRule, GoalView, Heard
 from arena_hearing.search.stops import StopRule, StopView
 
@@ -130,8 +130,9 @@ class SearchDriver:
         return self.config.stuck_s > 0.0 and tick.now - self.progress_t >= self.config.stuck_s
 
     def _choose(self, tick: Tick, grid: MapGrid) -> tuple[float, float] | None:
-        frontiers = [f for f in find_frontiers(grid, self.config.min_frontier_cells) if not self._is_blocked(f.goal_xy)]
         c = self.config
+        unblocked = [f for f in find_frontiers(grid, c.min_frontier_cells) if not self._is_blocked(f.goal_xy)]
+        frontiers = away_from(unblocked, tick.robot_xy, c.reached_radius_m, c.min_frontier_cells)
         openings = [o for o in find_openings(grid, c.opening_min_width_m, c.opening_max_width_m, c.opening_depth_m) if not self._is_blocked(o.xy)]
         return self.goal_rule.choose(GoalView(robot_xy=tick.robot_xy, grid=grid, frontiers=frontiers, openings=openings, belief=tick.belief, heard=tick.heard, blocked=tuple(self.blocked), blocked_radius_m=c.reached_radius_m))
 

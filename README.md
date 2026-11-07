@@ -186,8 +186,10 @@ Each tick it finds the frontiers of the map (free cells next to unknown ones,
 8-connected, at least `driver.min_frontier_cells`) and its openings (free gaps
 of `driver.opening_min_width_m` to `driver.opening_max_width_m` between
 occupied cells with wider space within `driver.opening_depth_m` on both sides,
-axis-aligned). Goals reached or failed within `driver.reached_radius_m` are not
-chosen again in the episode. A reset drops the map and ignores maps until it
+axis-aligned). A frontier drops its cells within `driver.reached_radius_m` of
+the robot, and its goal is the remaining cell nearest their centroid. Goals
+reached or failed within `driver.reached_radius_m` are not chosen again in the
+episode. A reset drops the map and ignores maps until it
 ends, so every episode plans on the map slam_toolbox rebuilds from empty. Goal
 rules:
 

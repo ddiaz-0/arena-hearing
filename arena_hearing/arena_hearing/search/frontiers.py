@@ -116,6 +116,16 @@ def find_frontiers(grid: MapGrid, min_cells: int) -> list[Frontier]:
         if len(rows) < min_cells:
             continue
         cells = grid.cells_to_world(rows, cols)
-        nearest = int(np.argmin(np.linalg.norm(cells - cells.mean(axis=0), axis=1)))
-        frontiers.append(Frontier(cells_xy=cells, goal_xy=(float(cells[nearest, 0]), float(cells[nearest, 1]))))
+        frontiers.append(_frontier(cells))
     return sorted(frontiers, key=lambda f: -f.n_cells)
+
+
+def _frontier(cells: np.ndarray) -> Frontier:
+    nearest = int(np.argmin(np.linalg.norm(cells - cells.mean(axis=0), axis=1)))
+    return Frontier(cells_xy=cells, goal_xy=(float(cells[nearest, 0]), float(cells[nearest, 1])))
+
+
+def away_from(frontiers: list[Frontier], xy: tuple[float, float], radius_m: float, min_cells: int) -> list[Frontier]:
+    """The frontiers without their cells within ``radius_m`` of ``xy``, goals recomputed, those left under ``min_cells`` dropped."""
+    kept = [_frontier(cells) for f in frontiers if len(cells := f.cells_xy[np.linalg.norm(f.cells_xy - np.asarray(xy), axis=1) > radius_m]) >= min_cells]
+    return sorted(kept, key=lambda f: -f.n_cells)

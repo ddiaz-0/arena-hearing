@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from arena_hearing.search.frontiers import FREE, OCCUPIED, UNKNOWN, MapGrid, find_frontiers, find_openings
+from arena_hearing.search.frontiers import FREE, OCCUPIED, UNKNOWN, MapGrid, away_from, find_frontiers, find_openings
 
 RESOLUTION = 0.1
 
@@ -85,3 +85,23 @@ def test_the_frontier_goal_is_a_frontier_cell() -> None:
     frontier = find_frontiers(_grid(data), min_cells=5)[0]
     goal = np.asarray(frontier.goal_xy)
     assert np.min(np.linalg.norm(frontier.cells_xy - goal, axis=1)) < 1e-9
+
+
+def _edge() -> np.ndarray:
+    data = np.full((40, 60), FREE, dtype=np.int16)
+    data[:, 55:] = UNKNOWN
+    return data
+
+
+def test_a_frontier_away_from_a_point_loses_its_cells_there_and_moves_its_goal() -> None:
+    (frontier,) = find_frontiers(_grid(_edge()), min_cells=5)
+    robot = frontier.goal_xy
+    (rest,) = away_from([frontier], robot, 0.5, 5)
+    assert rest.n_cells < frontier.n_cells
+    assert np.min(np.linalg.norm(rest.cells_xy - np.asarray(robot), axis=1)) > 0.5
+    assert np.linalg.norm(np.asarray(rest.goal_xy) - np.asarray(robot)) > 0.5
+
+
+def test_a_frontier_with_too_few_cells_left_is_dropped() -> None:
+    (frontier,) = find_frontiers(_grid(_edge()), min_cells=5)
+    assert away_from([frontier], frontier.goal_xy, 3.0, 5) == []
