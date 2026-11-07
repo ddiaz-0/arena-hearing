@@ -177,7 +177,7 @@ its cells unless `belief.standalone.size_m` (with `origin_m`) gives a rectangle:
 ```bash
 arena launch sim:=gazebo robot:=jackal world:=hospital_1 \
     task.robots:=search task.obstacles:=scenario task.scenario.file:=search_caller \
-    robot.mobile.mapping:=slam acoustics:=arena robot.hearing:=bus \
+    robot.mobile.mapping:=slam acoustics:=arena robot.hearing:=srp \
     robot.hearing.policy:=belief robot.hearing.belief.standalone.enabled:=true \
     robot.hearing.driver.enabled:=true robot.hearing.driver.goal_rule:=belief \
     robot.hearing.driver.stop_rule:=fixed_bend
