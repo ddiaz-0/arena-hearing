@@ -79,12 +79,13 @@ class BeliefGoal:
     snap: bool
     snap_max_error_rad: float
     standoff_m: float
+    approach_reach: float = 2.0
 
     def choose(self, view: GoalView) -> tuple[float, float] | None:
         if view.belief is not None:
             peak, value = view.belief.peak()
             if value >= self.locate_threshold:
-                return _approach(view, peak, self.standoff_m)
+                return _approach(view, peak, self.standoff_m, self.approach_reach)
         if self.snap and view.heard is not None:
             candidates = [o.xy for o in view.openings] + [f.goal_xy for f in view.frontiers]
             index = snap_bearing(view.heard.robot_xy, view.heard.bearing_rad, candidates, self.snap_max_error_rad)
@@ -99,14 +100,14 @@ class BeliefGoal:
         return NearestGoal().choose(view)
 
 
-def _approach(view: GoalView, person: tuple[float, float], standoff_m: float) -> tuple[float, float] | None:
-    """The unblocked free cell nearest the robot among the innermost ones at least ``standoff_m`` from ``person``, else the frontier nearest them."""
+def _approach(view: GoalView, person: tuple[float, float], standoff_m: float, reach: float) -> tuple[float, float] | None:
+    """The unblocked free cell nearest the robot among the innermost ones at least ``standoff_m`` from ``person`` and within ``reach`` standoffs, else the frontier nearest them."""
     grid = view.grid
     rows, cols = np.nonzero(grid.free)
     cells = grid.cells_to_world(rows, cols)
     to_person = np.linalg.norm(cells - np.asarray(person), axis=1)
     outside = to_person >= standoff_m
-    if outside.any() and to_person[outside].min() <= 2.0 * standoff_m:
+    if outside.any() and to_person[outside].min() <= reach * standoff_m:
         ring = cells[outside & (to_person <= to_person[outside].min() + grid.resolution)]
         if view.blocked:
             to_blocked = np.linalg.norm(ring[:, None, :] - np.asarray(view.blocked)[None, :, :], axis=2)

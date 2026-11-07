@@ -102,3 +102,25 @@ def test_a_located_person_with_every_standoff_reached_falls_back_to_the_nearest_
     ring = [(person[0] + 1.05 * math.cos(a), person[1] + 1.05 * math.sin(a)) for a in np.linspace(0.0, 2.0 * math.pi, 24, endpoint=False)]
     view = GoalView(robot_xy=ROBOT, grid=_grid(), frontiers=[_frontier(NEAR), _frontier(FAR)], openings=[], belief=_belief(person), heard=None, blocked=tuple(ring), blocked_radius_m=0.5)
     assert _locate_rule().choose(view) == NEAR
+
+
+def _walled_person(person: tuple[float, float], clear_m: float) -> GoalView:
+    grid = _grid()
+    rows, cols = np.indices(grid.data.shape)
+    cx, cy = person
+    inside = np.hypot((cols + 0.5) * RESOLUTION - cx, (rows + 0.5) * RESOLUTION - cy) < clear_m
+    grid.data[inside & (grid.data == FREE)] = 100
+    return GoalView(robot_xy=ROBOT, grid=grid, frontiers=[_frontier(NEAR), _frontier(FAR)], openings=[], belief=_belief(person), heard=None)
+
+
+def test_a_located_person_within_the_approach_reach_gets_a_free_cell_beside_them() -> None:
+    person = (3.05, 2.05)
+    goal = BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=0.9, distance_scale_m=5.0, snap=False, snap_max_error_rad=0.0, standoff_m=1.0, approach_reach=2.0).choose(_walled_person(person, 1.5))
+    assert goal is not None
+    assert 1.5 <= math.dist(goal, person) <= 1.65
+
+
+def test_a_located_person_beyond_the_approach_reach_is_approached_through_the_nearest_frontier() -> None:
+    person = (3.05, 2.05)
+    goal = BeliefGoal(radius_m=1.5, min_mass=0.5, locate_threshold=0.9, distance_scale_m=5.0, snap=False, snap_max_error_rad=0.0, standoff_m=1.0, approach_reach=1.2).choose(_walled_person(person, 1.5))
+    assert goal == NEAR

@@ -145,6 +145,7 @@ class DriverGroup(ParamGroup):
     LOCATE_THRESHOLD = Param[float]("driver.locate_threshold", 0.8, parse=within(0.0, 1.0))
     DISTANCE_SCALE_M = Param[float]("driver.distance_scale_m", 5.0, parse=positive)
     STANDOFF_M = Param[float]("driver.standoff_m", 1.0, parse=positive, description="Distance the belief rule stops short of a located person, below the task's found radius.")
+    APPROACH_REACH = Param[float]("driver.approach_reach", 2.0, parse=positive, description="Standoffs from a located person within which the belief rule takes a free cell, beyond it the frontier nearest the person.")
     SNAP_MAX_ERROR_DEG = Param[float]("driver.snap_max_error_deg", 20.0, parse=within(0.0, 180.0))
     BEND_LOOKAHEAD_M = Param[float]("driver.bend_lookahead_m", 4.0, parse=non_negative)
     BEND_STOP_BEFORE_M = Param[float]("driver.bend_stop_before_m", 2.0, parse=positive)

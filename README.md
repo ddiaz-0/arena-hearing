@@ -101,6 +101,7 @@ arena launch sim:=gazebo robot:=jackal world:=acoustics_bend_narrow_O \
 | `robot.hearing.driver.snap` | empty (`false`) | Snap a heard call onto a SLAM-map opening or frontier |
 | `robot.hearing.driver.replan_on_call` | empty (`true`) | Ask the goal rule again on every new call while driving |
 | `robot.hearing.driver.stuck_s` | empty (`15.0`) | Seconds without progress before a goal counts as failed, `0` = never |
+| `robot.hearing.driver.approach_reach` | empty (`2.0`) | Standoffs from a located person within which the belief rule takes a free cell, beyond it the frontier nearest the person |
 
 The `robot.hearing.*` arguments are declared from the parameters in
 [`params.py`](arena_hearing/arena_hearing/params.py) that carry a description.
@@ -198,7 +199,7 @@ rules:
 - `belief`: once the belief peak reaches `driver.locate_threshold`, the free
   cell nearest the robot `driver.standoff_m` short of it and not reached
   before (the person blocks the peak itself; the nearest frontier when no
-  such cell lies within twice that), else with `driver.snap` the opening or frontier the
+  such cell lies within `driver.approach_reach` times that), else with `driver.snap` the opening or frontier the
   latest call points at within `driver.snap_max_error_deg`, else the frontier
   with the most belief mass within `driver.belief_radius_m` per
   `1 + distance / driver.distance_scale_m`, else the nearest.
@@ -214,6 +215,25 @@ driven to. A goal the robot makes no progress on (it stays within
 `<r>/hearing/speed_limit` holding the clock) counts as failed.
 The driver reports `done` while no frontier is left and resumes once the map
 shows a new one.
+
+Every `robot.hearing.*` key is a benchmark contestant argument, so the sweep
+form of a contest tunes the driver, one contestant per combination named after
+the varying values (`listen-every_goal-0.5`, ...):
+
+```yaml
+name: listen
+mobile: {driver: nav2, mapping: slam}
+robot.hearing: srp
+robot.hearing.belief.standalone.enabled: true
+robot.hearing.driver.enabled: true
+robot.hearing.driver.goal_rule: belief
+robot.hearing.driver.stop_rule: [every_goal, on_call, fixed_bend]
+robot.hearing.driver.listen_s: [0.5, 1.0, 1.5, 2.0, 3.0]
+```
+
+The SLAM-only baseline is the contestant with `driver.goal_rule: nearest` and
+`driver.stop_rule: never`. The goal check (`task.search.radius`,
+`line_of_sight`, `dwell_s`) belongs to the suite stage's `config.search`.
 
 ## Evaluation
 
