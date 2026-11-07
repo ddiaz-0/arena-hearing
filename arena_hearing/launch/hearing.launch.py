@@ -29,6 +29,7 @@ def _hearing(context: launch.LaunchContext) -> list[launch.LaunchDescriptionEnti
     }
     if frontend is Frontend.SRP:
         derived["belief.kinds"] = ["onset"]
+        derived["driver.kinds"] = ["onset"]
     forwarded: dict[str, object] = {}
     detect_kinds = sorted(name for name, kind in SoundLibrary.default().kinds().items() if kind.detect)
     for key, raw in configs.items():

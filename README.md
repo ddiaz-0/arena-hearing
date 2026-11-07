@@ -110,7 +110,7 @@ Every `robot.hearing.<param>:=<value>` reaches the hearing nodes as parameter
 An unknown key or an emission level of a kind that is not detected is an error, an empty value keeps the node default, and a list cannot be empty: `robot.hearing.belief.kinds:=[all]` accepts every kind. These keys
 never reach the robot adapters. The launch also derives `hearing.frontend`,
 `hearing.tg_node`, `belief.event_rate_hz`, `policy.listen.enabled`,
-`policy.yield.enabled` and, for `srp`, `belief.kinds`.
+`policy.yield.enabled` and, for `srp`, `belief.kinds` and `driver.kinds`.
 
 ## Topics
 
